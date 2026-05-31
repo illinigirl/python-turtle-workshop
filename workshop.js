@@ -766,6 +766,69 @@ function updateProgress() {
   const done = [...doneSet].filter((x) => ids.has(x)).length;
   $("progress-fill").style.width = (100 * done / total) + "%";
   $("progress-text").textContent = done + " / " + total;
+  renderBadges();
+}
+
+// --- Unit badges + celebration -------------------------------------------
+// A "unit" is a group of lessons sharing the same `unit` label. Free play is
+// excluded (nothing to complete). A unit badge is earned when every lesson in
+// it is marked done.
+function realUnits() {
+  const order = [];
+  const map = {};
+  LESSONS.forEach((l, i) => {
+    if (/free play/i.test(l.unit)) return;        // skip free play
+    if (!map[l.unit]) { map[l.unit] = []; order.push(l.unit); }
+    map[l.unit].push(i);
+  });
+  return order.map((u) => ({ unit: u, idxs: map[u] }));
+}
+function unitComplete(idxs) {
+  return idxs.length > 0 && idxs.every((i) => doneSet.has(lid(i)));
+}
+function shortUnit(unit) {
+  // "1 · Tell the computer..." -> "Unit 1"; "2 · Meet the turtle 🐢" -> "Unit 2"
+  const m = unit.match(/^\s*(\d+)/);
+  return m ? "Unit " + m[1] : unit;
+}
+function renderBadges() {
+  const box = $("badges");
+  if (!box) return;
+  box.innerHTML = "";
+  realUnits().forEach(({ unit, idxs }) => {
+    if (!unitComplete(idxs)) return;
+    const b = document.createElement("span");
+    b.className = "badge";
+    b.title = unit;
+    b.textContent = "🏅 " + shortUnit(unit);
+    box.appendChild(b);
+  });
+}
+
+function celebrate(message) {
+  // toast
+  const toast = document.createElement("div");
+  toast.className = "celebrate-toast";
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => { toast.classList.remove("show"); setTimeout(() => toast.remove(), 400); }, 2600);
+  // confetti
+  const layer = document.createElement("div");
+  layer.id = "confetti";
+  document.body.appendChild(layer);
+  const colors = ["#57c785", "#ffb454", "#4ea1ff", "#ff7eb6", "#ffd93d", "#a78bfa"];
+  for (let i = 0; i < 90; i++) {
+    const bit = document.createElement("div");
+    bit.className = "confetti-bit";
+    bit.style.left = (Math.floor((i / 90) * 100) + (i % 7)) + "%";
+    bit.style.background = colors[i % colors.length];
+    const dur = 2.2 + (i % 10) * 0.12;
+    const delay = (i % 12) * 0.05;
+    bit.style.animation = "confettiFall " + dur + "s linear " + delay + "s forwards";
+    layer.appendChild(bit);
+  }
+  setTimeout(() => layer.remove(), 4200);
 }
 
 function renderLesson() {
@@ -974,12 +1037,18 @@ function wireButtons() {
 
   $("done-btn").addEventListener("click", () => {
     const id = lid(current);
+    const myUnit = realUnits().find((u) => u.idxs.includes(current));
+    const wasComplete = myUnit ? unitComplete(myUnit.idxs) : false;
     if (doneSet.has(id)) doneSet.delete(id);
     else doneSet.add(id);
     persistNow();
     buildSidebar();
     renderLesson();
-    if (doneSet.has(id) && current < LESSONS.length - 1) {
+    // celebrate the moment a unit becomes fully finished
+    const nowComplete = myUnit ? unitComplete(myUnit.idxs) : false;
+    if (!wasComplete && nowComplete) {
+      celebrate("🎉 You finished " + shortUnit(myUnit.unit) + "!");
+    } else if (doneSet.has(id) && current < LESSONS.length - 1) {
       setTimeout(() => goTo(current + 1), 350);
     }
   });
