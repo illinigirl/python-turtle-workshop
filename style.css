@@ -237,3 +237,31 @@ header {
   transition: opacity .3s ease, transform .3s ease;
 }
 .celebrate-toast.show { opacity: 1; transform: translateX(-50%) scale(1); }
+
+/* ---- Save drawing + gallery ---- */
+.canvas-actions { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+.canvas-actions .btn { font-size: 14px; }
+
+.modal {
+  position: fixed; inset: 0; z-index: 150; background: #0009;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal.hidden { display: none; }
+.modal-box {
+  background: var(--panel); border-radius: var(--radius); width: min(900px, 100%);
+  max-height: 86vh; overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px #000a;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #ffffff1a; }
+.modal-head h2 { margin: 0; font-size: 20px; }
+#gallery-grid {
+  padding: 16px; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px;
+}
+#gallery-grid .empty { color: var(--muted); grid-column: 1 / -1; text-align: center; padding: 30px; }
+.gal-card { background: var(--panel-2); border-radius: 12px; overflow: hidden; }
+.gal-card img { width: 100%; display: block; background: #fff; aspect-ratio: 1/1; object-fit: contain; }
+.gal-meta { padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gal-meta .gal-title { font-size: 14px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gal-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+.gal-del:hover { color: #ff7b72; }

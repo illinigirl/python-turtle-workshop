@@ -19,6 +19,9 @@ it's never committed. Writes are atomic (temp file + os.replace).
 import json
 import os
 import threading
+import base64
+import time
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -47,6 +50,10 @@ _anthropic_client = None  # created lazily, reused across requests
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PROGRESS_FILE = os.path.join(DATA_DIR, "progress.json")
+GALLERY_DIR = os.path.join(DATA_DIR, "gallery")
+GALLERY_INDEX = os.path.join(DATA_DIR, "gallery.json")
+GALLERY_MAX_PER_KID = 40          # keep the newest N drawings per learner
+GALLERY_MAX_BYTES = 600 * 1024    # reject images larger than this
 
 HOST = os.environ.get("WORKSHOP_HOST", "0.0.0.0")
 PORT = int(os.environ.get("WORKSHOP_PORT", "8095"))
@@ -91,6 +98,77 @@ def _norm(kid):
         if p.lower() == str(kid).lower():
             return p
     return None
+
+
+# ---------------------------------------------------------------------------
+# "Save my drawing" gallery — PNGs on disk + a small JSON index
+# ---------------------------------------------------------------------------
+def _gallery_load():
+    try:
+        with open(GALLERY_INDEX, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def _gallery_save(items):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    tmp = GALLERY_INDEX + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(items, f, indent=2)
+        f.flush(); os.fsync(f.fileno())
+    os.replace(tmp, GALLERY_INDEX)
+
+
+def gallery_add(kid, data_url, title, lesson):
+    """Decode a PNG data URL, store it, and append to the index. Enforces a
+    size cap and a per-kid count cap (drops the oldest). Returns the new item."""
+    m = re.match(r"^data:image/png;base64,([A-Za-z0-9+/=]+)$", data_url or "")
+    if not m:
+        raise ValueError("not a png data url")
+    raw = base64.b64decode(m.group(1))
+    if len(raw) > GALLERY_MAX_BYTES:
+        raise ValueError("image too large")
+    os.makedirs(GALLERY_DIR, exist_ok=True)
+    # filename: <kid>-<ms>.png  (ms timestamp keeps them ordered + unique enough)
+    fname = "%s-%d.png" % (re.sub(r"[^A-Za-z0-9]", "", kid), int(time.time() * 1000))
+    with open(os.path.join(GALLERY_DIR, fname), "wb") as f:
+        f.write(raw)
+    item = {"kid": kid, "file": fname, "title": (title or "").strip()[:60] or "Untitled",
+            "lesson": str(lesson or "")[:120], "ts": int(time.time())}
+    with _lock:
+        items = _gallery_load()
+        items.append(item)
+        # enforce per-kid cap: drop oldest of this kid
+        mine = [x for x in items if x.get("kid") == kid]
+        if len(mine) > GALLERY_MAX_PER_KID:
+            drop = mine[:len(mine) - GALLERY_MAX_PER_KID]
+            dropfiles = {x["file"] for x in drop}
+            items = [x for x in items if x["file"] not in dropfiles]
+            for df in dropfiles:
+                try: os.remove(os.path.join(GALLERY_DIR, df))
+                except OSError: pass
+        _gallery_save(items)
+    return item
+
+
+def gallery_list(kid):
+    with _lock:
+        items = _gallery_load()
+    return [{"file": x["file"], "title": x.get("title", ""), "lesson": x.get("lesson", ""),
+             "ts": x.get("ts", 0)} for x in items if x.get("kid") == kid][::-1]  # newest first
+
+
+def gallery_delete(kid, fname):
+    with _lock:
+        items = _gallery_load()
+        keep = [x for x in items if not (x.get("kid") == kid and x.get("file") == fname)]
+        if len(keep) != len(items):
+            try: os.remove(os.path.join(GALLERY_DIR, os.path.basename(fname)))
+            except OSError: pass
+            _gallery_save(keep)
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +346,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"done": rec.get("done", []), "code": rec.get("code", {}),
                                     "steps": rec.get("steps", {})})
 
+        if path == "/api/gallery":
+            qs = parse_qs(parsed.query)
+            kid = _norm((qs.get("kid") or [""])[0])
+            if not kid:
+                return self._send(400, {"error": "unknown kid"})
+            return self._send(200, {"drawings": gallery_list(kid)})
+
+        # saved drawing images
+        if path.startswith("/gallery/"):
+            safe = os.path.basename(path[len("/gallery/"):])
+            full = os.path.join(GALLERY_DIR, safe)
+            if safe.endswith(".png") and os.path.isfile(full):
+                with open(full, "rb") as f:
+                    return self._send(200, f.read(), "image/png")
+            return self._send(404, {"error": "not found"})
+
         # static files
         name = "index.html" if path == "/" else path.lstrip("/")
         if name in STATIC:
@@ -282,7 +376,7 @@ class Handler(BaseHTTPRequestHandler):
     # ---- POST ----
     def do_POST(self):
         path = urlparse(self.path).path
-        if path not in ("/api/progress", "/api/ask"):
+        if path not in ("/api/progress", "/api/ask", "/api/gallery", "/api/gallery_delete"):
             return self._send(404, {"error": "not found"})
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -296,6 +390,21 @@ class Handler(BaseHTTPRequestHandler):
         kid = _norm(payload.get("kid"))
         if not kid:
             return self._send(400, {"error": "unknown kid"})
+
+        if path == "/api/gallery":
+            try:
+                item = gallery_add(kid, payload.get("image"), payload.get("title"),
+                                   payload.get("lesson"))
+                return self._send(200, {"ok": True, "file": item["file"]})
+            except ValueError as e:
+                return self._send(400, {"error": str(e)})
+            except Exception as e:
+                print("gallery save error:", repr(e))
+                return self._send(500, {"error": "could not save drawing"})
+
+        if path == "/api/gallery_delete":
+            ok = gallery_delete(kid, str(payload.get("file", "")))
+            return self._send(200, {"ok": ok})
 
         done = payload.get("done", [])
         code = payload.get("code", {})

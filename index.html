@@ -99,8 +99,23 @@
         <div id="canvas-col">
           <canvas id="turtle-canvas" width="560" height="560"></canvas>
           <div class="canvas-hint">Your turtle draws here 🐢</div>
+          <div class="canvas-actions">
+            <button id="save-drawing" class="btn btn-ghost" type="button">💾 Save my drawing</button>
+            <button id="open-gallery" class="btn btn-ghost" type="button">🖼️ My gallery</button>
+          </div>
         </div>
       </section>
+
+      <!-- Saved-drawings gallery (hidden until opened) -->
+      <div id="gallery-modal" class="modal hidden">
+        <div class="modal-box">
+          <div class="modal-head">
+            <h2>🖼️ <span id="gallery-who"></span>'s gallery</h2>
+            <button id="gallery-close" class="btn btn-ghost" type="button">✕ Close</button>
+          </div>
+          <div id="gallery-grid"></div>
+        </div>
+      </div>
 
       <div class="lesson-nav">
         <button id="prev-btn" class="btn btn-ghost">← Back</button>

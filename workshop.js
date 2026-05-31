@@ -989,10 +989,101 @@ function goTo(i) {
 }
 
 /* ------------------------------------------------------------
+   "Save my drawing" gallery
+   ------------------------------------------------------------ */
+function showToast(msg) {
+  const toast = document.createElement("div");
+  toast.className = "celebrate-toast";
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => { toast.classList.remove("show"); setTimeout(() => toast.remove(), 400); }, 1800);
+}
+
+async function saveDrawing() {
+  if (!kid) return;
+  const title = prompt("Name your drawing (or leave blank):", LESSONS[current].title);
+  if (title === null) return;  // cancelled
+  let image;
+  try { image = canvas.toDataURL("image/png"); } catch (e) { showToast("Couldn't grab the drawing 😕"); return; }
+  try {
+    const r = await fetch("api/gallery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kid, image, title, lesson: LESSONS[current].title }),
+    });
+    const data = await r.json().catch(() => ({}));
+    showToast(r.ok ? "Saved to your gallery! 🖼️" : (data.error || "Couldn't save 😕"));
+  } catch (e) { showToast("Couldn't reach the server 😕"); }
+}
+
+async function openGallery() {
+  if (!kid) return;
+  $("gallery-who").textContent = kid;
+  const grid = $("gallery-grid");
+  grid.innerHTML = '<div class="empty">Loading…</div>';
+  $("gallery-modal").classList.remove("hidden");
+  let drawings = [];
+  try {
+    const r = await fetch("api/gallery?kid=" + encodeURIComponent(kid));
+    if (r.ok) drawings = (await r.json()).drawings || [];
+  } catch (e) {}
+  renderGallery(drawings);
+}
+
+function renderGallery(drawings) {
+  const grid = $("gallery-grid");
+  grid.innerHTML = "";
+  if (!drawings.length) {
+    grid.innerHTML = '<div class="empty">No saved drawings yet. Make some turtle art, then tap 💾 Save my drawing!</div>';
+    return;
+  }
+  drawings.forEach((d) => {
+    const card = document.createElement("div");
+    card.className = "gal-card";
+    const img = document.createElement("img");
+    img.src = "gallery/" + d.file;
+    img.alt = d.title;
+    img.loading = "lazy";
+    const meta = document.createElement("div");
+    meta.className = "gal-meta";
+    const t = document.createElement("span");
+    t.className = "gal-title";
+    t.textContent = d.title || "Untitled";
+    t.title = (d.title || "") + (d.lesson ? "  ·  " + d.lesson : "");
+    const del = document.createElement("button");
+    del.className = "gal-del";
+    del.type = "button";
+    del.textContent = "🗑️";
+    del.title = "Delete";
+    del.addEventListener("click", () => deleteDrawing(d.file));
+    meta.appendChild(t); meta.appendChild(del);
+    card.appendChild(img); card.appendChild(meta);
+    grid.appendChild(card);
+  });
+}
+
+async function deleteDrawing(file) {
+  if (!confirm("Delete this drawing?")) return;
+  try {
+    await fetch("api/gallery_delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kid, file }),
+    });
+  } catch (e) {}
+  openGallery();  // refresh
+}
+
+/* ------------------------------------------------------------
    7) Button wiring
    ------------------------------------------------------------ */
 function wireButtons() {
   $("run-btn").addEventListener("click", runCode);
+  $("save-drawing").addEventListener("click", saveDrawing);
+  $("open-gallery").addEventListener("click", openGallery);
+  $("gallery-close").addEventListener("click", () => $("gallery-modal").classList.add("hidden"));
+  $("gallery-modal").addEventListener("click", (e) => { if (e.target.id === "gallery-modal") $("gallery-modal").classList.add("hidden"); });
   $("clear-btn").addEventListener("click", clearCanvas);
   $("console-clear").addEventListener("click", clearConsole);
   $("prev-btn").addEventListener("click", () => goTo(current - 1));
