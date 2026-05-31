@@ -1,0 +1,11 @@
+# Learner progress is runtime state, never committed
+data/
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+.DS_Store

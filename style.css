@@ -1,0 +1,203 @@
+/* ---- Kid-friendly Python Workshop styling ---- */
+:root {
+  --bg: #1b1e2b;
+  --panel: #252a3d;
+  --panel-2: #2e3450;
+  --ink: #eef1ff;
+  --muted: #9aa3c7;
+  --accent: #57c785;      /* turtle green */
+  --accent-2: #ffb454;    /* level-up gold */
+  --blue: #4ea1ff;
+  --pink: #ff7eb6;
+  --radius: 14px;
+  font-size: 18px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Comic Sans MS", "Trebuchet MS", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---- Boot / loading screen ---- */
+#boot {
+  position: fixed; inset: 0; z-index: 100;
+  background: radial-gradient(circle at 50% 35%, #2a3050, #14161f);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .4s ease;
+}
+#boot.hidden { opacity: 0; pointer-events: none; }
+.boot-box { text-align: center; max-width: 460px; padding: 24px; }
+.boot-turtle { font-size: 70px; animation: bob 1.4s ease-in-out infinite; }
+@keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+.boot-box h1 { margin: 8px 0; }
+.boot-box p { color: var(--muted); }
+.boot-bar { height: 12px; background: #1a1d2b; border-radius: 99px; overflow: hidden; margin-top: 18px; }
+#boot-fill { height: 100%; width: 10%; background: linear-gradient(90deg, var(--accent), var(--blue)); transition: width .3s; }
+
+/* ---- Profile picker ---- */
+#picker {
+  position: fixed; inset: 0; z-index: 90;
+  background: radial-gradient(circle at 50% 35%, #2a3050, #14161f);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .3s ease;
+}
+#picker.hidden { opacity: 0; pointer-events: none; }
+.picker-box { text-align: center; }
+.picker-box h1 { margin: 6px 0 22px; }
+#picker-buttons { display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; }
+.kid-btn {
+  font-family: inherit; cursor: pointer; border: none;
+  width: 160px; padding: 26px 18px; border-radius: 20px;
+  background: var(--panel-2); color: var(--ink); font-size: 22px; font-weight: bold;
+  box-shadow: 0 6px 0 #0004; transition: transform .12s;
+}
+.kid-btn:hover { transform: translateY(-4px); filter: brightness(1.12); }
+.kid-btn .avatar { font-size: 54px; display: block; margin-bottom: 8px; }
+.kid-btn .sub { display: block; font-size: 13px; font-weight: normal; color: var(--muted); margin-top: 6px; }
+
+.who-chip {
+  font-family: inherit; cursor: pointer; border: 1px solid #ffffff22;
+  background: var(--panel-2); color: var(--ink); border-radius: 99px;
+  padding: 6px 12px; font-size: 14px; font-weight: bold; margin-left: 14px;
+}
+.who-chip:hover { filter: brightness(1.15); }
+.who-swap { color: var(--muted); margin-left: 4px; }
+
+/* ---- Header ---- */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 18px; background: var(--panel); border-bottom: 2px solid #00000033;
+}
+.brand { font-size: 22px; font-weight: bold; }
+.progress-wrap { display: flex; align-items: center; gap: 10px; }
+.progress-bar { width: 220px; height: 12px; background: #161927; border-radius: 99px; overflow: hidden; }
+#progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .3s; }
+#progress-text { color: var(--muted); font-size: 15px; min-width: 56px; }
+
+/* ---- App grid ---- */
+#app { flex: 1; display: grid; grid-template-columns: 250px 1fr; min-height: 0; }
+
+#sidebar { background: var(--panel); overflow-y: auto; padding: 10px; border-right: 2px solid #00000033; }
+#lesson-list { list-style: none; margin: 0; padding: 0; }
+#lesson-list li {
+  padding: 10px 12px; margin: 4px 0; border-radius: 10px; cursor: pointer;
+  font-size: 15px; line-height: 1.25; display: flex; gap: 8px; align-items: flex-start;
+}
+#lesson-list li:hover { background: var(--panel-2); }
+#lesson-list li.active { background: var(--blue); color: #fff; font-weight: bold; }
+#lesson-list li.done .tick { color: var(--accent); }
+#lesson-list li .tick { width: 18px; flex: none; }
+#lesson-list .unit-divider {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted); padding: 14px 12px 4px; cursor: default;
+}
+#lesson-list .unit-divider:hover { background: none; }
+
+/* ---- Stage ---- */
+#stage { overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; }
+.lesson-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.unit-tag { background: var(--panel-2); color: var(--blue); padding: 3px 10px; border-radius: 99px; font-size: 13px; }
+#lesson-title { margin: 6px 0 12px; font-size: 26px; }
+#lesson-intro { line-height: 1.5; font-size: 17px; max-width: 70ch; }
+#lesson-intro code, .task-box code, .levelup-box code {
+  background: #11131d; padding: 1px 6px; border-radius: 6px; font-family: "SF Mono", Menlo, monospace; font-size: 15px; color: var(--accent-2);
+}
+#lesson-intro pre {
+  background: #11131d; padding: 12px 14px; border-radius: 10px; overflow-x: auto;
+  font-family: "SF Mono", Menlo, monospace; font-size: 14px; line-height: 1.4; border-left: 4px solid var(--blue);
+}
+.task-box {
+  background: #1f2b22; border: 2px solid var(--accent); border-radius: var(--radius);
+  padding: 12px 16px; margin: 16px 0 8px; max-width: 70ch;
+}
+.task-box::before { content: "🎯 Your turn"; display: block; font-weight: bold; color: var(--accent); margin-bottom: 6px; }
+.levelup-box {
+  background: #2e2614; border: 2px dashed var(--accent-2); border-radius: var(--radius);
+  padding: 12px 16px; margin: 8px 0; max-width: 70ch;
+}
+.levelup-box:empty { display: none; }
+.levelup-box::before { content: "⭐ Level up (extra challenge)"; display: block; font-weight: bold; color: var(--accent-2); margin-bottom: 6px; }
+
+/* ---- Workspace ---- */
+#workspace { display: grid; grid-template-columns: 1fr 580px; gap: 18px; margin-top: 18px; align-items: start; }
+#editor-col { display: flex; flex-direction: column; min-width: 0; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.speed { margin-left: auto; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.speed input { width: 110px; }
+
+.btn {
+  border: none; border-radius: 10px; padding: 9px 14px; font-size: 15px; cursor: pointer;
+  background: var(--panel-2); color: var(--ink); font-family: inherit; font-weight: bold;
+}
+.btn:hover { filter: brightness(1.15); }
+.btn:active { transform: translateY(1px); }
+.btn-run { background: var(--accent); color: #08210f; font-size: 16px; }
+.btn-run.busy { opacity: .6; cursor: wait; }
+.btn-done { background: var(--accent-2); color: #2a1d00; }
+.btn-ghost { background: transparent; border: 1px solid #ffffff22; color: var(--muted); font-weight: normal; }
+
+#editor { border-radius: 10px; overflow: hidden; border: 1px solid #ffffff14; }
+.CodeMirror { height: auto; min-height: 240px; font-size: 15px; font-family: "SF Mono", Menlo, monospace; }
+.CodeMirror-scroll { min-height: 240px; }
+
+.console-head { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 4px; color: var(--muted); font-size: 13px; }
+.mini { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; text-decoration: underline; }
+#console {
+  background: #0d0f17; border-radius: 10px; padding: 12px; margin: 0; min-height: 90px; max-height: 220px; overflow-y: auto;
+  font-family: "SF Mono", Menlo, monospace; font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
+}
+#console .err { color: #ff7b72; }
+#console .ok { color: var(--accent); }
+.err-help-wrap { margin-top: 8px; }
+.err-help { font-size: 13px; padding: 7px 12px; background: var(--blue); color: #fff; }
+.err-help:disabled { opacity: .5; cursor: default; }
+
+/* ---- AI helper ---- */
+#help { margin-top: 14px; border: 2px solid var(--blue); border-radius: var(--radius); padding: 12px; background: #1a2233; }
+#help.hidden { display: none; }
+.help-head { font-weight: bold; color: var(--blue); margin-bottom: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.help-actions { margin-left: auto; display: flex; gap: 8px; }
+.help-actions .btn { font-size: 13px; padding: 5px 10px; }
+#help-chat { max-height: 260px; overflow-y: auto; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
+#help-chat:empty { display: none; }
+.bubble { padding: 8px 12px; border-radius: 12px; font-size: 15px; line-height: 1.45; max-width: 92%; white-space: pre-wrap; word-break: break-word; }
+.bubble.me { align-self: flex-end; background: var(--blue); color: #fff; border-bottom-right-radius: 3px; }
+.bubble.helper { align-self: flex-start; background: var(--panel-2); color: var(--ink); border-bottom-left-radius: 3px; }
+.bubble.helper code { background: #11131d; padding: 1px 5px; border-radius: 5px; font-family: "SF Mono", Menlo, monospace; font-size: 13px; color: var(--accent-2); }
+.bubble.helper pre { background: #0d0f17; padding: 10px; border-radius: 8px; overflow-x: auto; margin: 6px 0 0; }
+.bubble.helper pre code { background: none; padding: 0; color: var(--accent); }
+.bubble.thinking { color: var(--muted); font-style: italic; }
+#help-form { display: flex; gap: 8px; }
+#help-input { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid #ffffff22; background: #0d0f17; color: var(--ink); font-family: inherit; font-size: 15px; }
+#help-input:focus { outline: none; border-color: var(--blue); }
+
+/* ---- Canvas ---- */
+#canvas-col { position: sticky; top: 0; }
+#turtle-canvas {
+  width: 100%; max-width: 580px; aspect-ratio: 1 / 1; height: auto;
+  background: #fff; border-radius: var(--radius); box-shadow: 0 8px 28px #0006;
+}
+.canvas-hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+/* ---- Lesson nav ---- */
+.lesson-nav { display: flex; gap: 10px; align-items: center; margin: 22px 0 40px; }
+.lesson-nav #next-btn { margin-left: auto; }
+
+/* ---- Responsive: stack on narrow screens (iPad portrait, etc.) ---- */
+@media (max-width: 1100px) {
+  #workspace { grid-template-columns: 1fr; }
+  #canvas-col { position: static; }
+  #turtle-canvas { max-width: 480px; margin: 0 auto; display: block; }
+}
+@media (max-width: 760px) {
+  #app { grid-template-columns: 1fr; }
+  #sidebar { display: none; }
+}
