@@ -651,13 +651,143 @@ for i in range(10):
 `
 },
 
-/* ===================== UNIT 5 ===================== */
+/* ===================== UNIT 5 (Lists & data) ===================== */
 {
-  unit: "5 · Build something big",
+  unit: "5 · Lists & data 📊",
+  title: "Make a list 📝",
+  intro: `
+    <p>So far each box held ONE thing. A <b>list</b> is a box that holds <b>many</b>
+    things, in order. You make one with square brackets <code>[ ]</code> and commas:</p>
+    <pre>fruits = ["apple", "banana", "cherry"]
+print(fruits)
+print(fruits[0])     # the FIRST one (counting starts at 0!): apple
+print(len(fruits))   # how many are in the list: 3</pre>
+    <p>Counting starts at <b>0</b>, so <code>fruits[0]</code> is the first item and
+    <code>fruits[1]</code> is the second. Add a new item to the end with
+    <code>.append()</code>:</p>
+    <pre>fruits.append("kiwi")   # now the list has 4 things</pre>`,
+  task: `<p>Make a list of 3 or more of your <b>favorite things</b>. Print the whole
+    list, then print just the <b>first</b> one with <code>[0]</code>. Then
+    <code>.append()</code> one more and print how many you have with
+    <code>len(...)</code>.</p>`,
+  levelUp: `<p>Print the <b>last</b> item using <code>favorites[-1]</code> — a
+    negative number counts from the end!</p>`,
+  starter:
+`favorites = ["pizza", "legos", "soccer"]
+
+print(favorites)
+print(favorites[0])
+`,
+  solution:
+`favorites = ["pizza", "legos", "soccer"]
+
+print("My favorites:", favorites)
+print("Number one:", favorites[0])
+
+favorites.append("ice cream")
+print("Now I have", len(favorites), "favorites!")
+print("Last one:", favorites[-1])
+`
+},
+{
+  unit: "5 · Lists & data 📊",
+  title: "Loop through a list 🔁",
+  intro: `
+    <p>The best part of lists: you can do something with <b>every</b> item using a
+    <code>for</code> loop. This is the "for each" loop:</p>
+    <pre>animals = ["cat", "dog", "fish"]
+for a in animals:
+    print("I like the " + a)</pre>
+    <p>Each time around, <code>a</code> becomes the next item in the list. No counting
+    needed! It works great with the turtle too — a list of colors, one shape each:</p>
+    <pre>import turtle
+colors = ["red", "green", "blue"]
+for c in colors:
+    turtle.pencolor(c)
+    turtle.forward(100)
+    turtle.right(120)</pre>`,
+  task: `<p>Make a list, then use a <code>for</code> loop to print each item on its
+    own line.</p>`,
+  levelUp: `<p>Make a list of <b>colors</b> and loop through it to draw one line (or
+    shape) in each color with the turtle.</p>`,
+  starter:
+`animals = ["cat", "dog", "fish", "frog"]
+
+for a in animals:
+    print(a)
+`,
+  solution:
+`import turtle
+turtle.pensize(5)
+
+colors = ["red", "orange", "yellow", "green", "blue", "purple"]
+for c in colors:
+    turtle.pencolor(c)
+    turtle.forward(120)
+    turtle.right(60)
+`
+},
+{
+  unit: "5 · Lists & data 📊",
+  title: "Put it together: Number chart 📊",
+  intro: `
+    <p>Lists can hold <b>numbers</b> too — and numbers can become a <b>chart</b>!
+    Let's loop through a list of numbers and draw a bar for each one: a bigger number
+    makes a taller bar. This uses <b>lists + loops + a function + the turtle</b> all
+    at once.</p>
+    <pre>scores = [40, 90, 60, 120]
+for height in scores:
+    # draw a bar this tall, then move over</pre>
+    <p>A <code>bar(height)</code> function keeps the drawing tidy — write it once, call
+    it for every number.</p>`,
+  task: `<p>Make a list of <b>numbers</b>, then draw a simple <b>bar chart</b> — one bar
+    per number, where the number is how tall the bar is. Use a <code>bar(...)</code>
+    function and a <code>for</code> loop.</p>`,
+  levelUp: `<p>Give each bar a different <b>color</b> from a color list as you loop.</p>`,
+  starter:
+`import turtle
+turtle.pensize(3)
+
+scores = [40, 90, 60, 120, 70]
+
+def bar(height):
+    turtle.left(90); turtle.forward(height)     # up
+    turtle.right(90); turtle.forward(40)         # across the top
+    turtle.right(90); turtle.forward(height)     # back down
+    turtle.left(90)                              # ready for the next bar
+
+turtle.penup(); turtle.goto(-160, -80); turtle.pendown()
+for h in scores:
+    bar(h)
+`,
+  solution:
+`import turtle
+turtle.bgcolor("black")
+turtle.pensize(3)
+
+scores = [40, 90, 60, 120, 70]
+colors = ["red", "orange", "yellow", "green", "cyan"]
+
+def bar(height, color):
+    turtle.pencolor(color)
+    turtle.left(90); turtle.forward(height)
+    turtle.right(90); turtle.forward(40)
+    turtle.right(90); turtle.forward(height)
+    turtle.left(90)
+
+turtle.penup(); turtle.goto(-160, -80); turtle.pendown()
+for i in range(len(scores)):
+    bar(scores[i], colors[i % len(colors)])
+`
+},
+
+/* ===================== UNIT 6 ===================== */
+{
+  unit: "6 · Build something big",
   title: "CAPSTONE: Your own creation 🏆",
   intro: `
-    <p>You now know <b>print, variables, math, loops, if/else, input, while, and
-    functions</b> — that is real programming! Time to build your own thing.</p>
+    <p>You now know <b>print, variables, math, loops, if/else, input, while,
+    functions, and lists</b> — that is real programming! Time to build your own thing.</p>
     <p>Pick ONE (or invent your own):</p>
     <p><b>🐢 Turtle masterpiece</b> — Use functions and loops to draw a scene: a house,
     a robot, a galaxy of stars, your name in shapes.</p>
@@ -776,6 +906,9 @@ const LESSON_STEPS = [
   ["Write your own function with def", "Call it a few times around the canvas", "⭐ Make a flower using a function"],
   ["Call shape() with different numbers of sides", "Move or change color between shapes", "⭐ Add a color to shape()"],
   ["Write a function that draws a shape", "Call it a few times with different numbers", "Use color and size to make it cool", "⭐ Loop your function for a big pattern"],
+  ["Make a list with [ ]", "Print the whole list", "Print just the first item with [0]", "Add one with .append() and print len()", "⭐ Print the last item with [-1]"],
+  ["Make a list", "Loop through it with for ... in ...", "Do something with each item", "⭐ Use a color list to draw with the turtle"],
+  ["Make a list of numbers", "Write a bar() function that draws one bar", "Loop the numbers, drawing a bar for each", "⭐ Give each bar its own color"],
   ["Pick your project (art, story, or game)", "Build it!", "⭐ Add one surprise (random event, secret, hidden room)"],
   [],
 ];
