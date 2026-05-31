@@ -265,7 +265,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "unknown kid"})
             with _lock:
                 rec = _load_all().get(kid, {})
-            return self._send(200, {"done": rec.get("done", []), "code": rec.get("code", {})})
+            return self._send(200, {"done": rec.get("done", []), "code": rec.get("code", {}),
+                                    "steps": rec.get("steps", {})})
 
         # static files
         name = "index.html" if path == "/" else path.lstrip("/")
@@ -298,12 +299,13 @@ class Handler(BaseHTTPRequestHandler):
 
         done = payload.get("done", [])
         code = payload.get("code", {})
-        if not isinstance(done, list) or not isinstance(code, dict):
+        steps = payload.get("steps", {})
+        if not isinstance(done, list) or not isinstance(code, dict) or not isinstance(steps, dict):
             return self._send(400, {"error": "bad shape"})
 
         with _lock:
             data = _load_all()
-            data[kid] = {"done": done, "code": code}
+            data[kid] = {"done": done, "code": code, "steps": steps}
             _save_all(data)
         return self._send(200, {"ok": True})
 

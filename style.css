@@ -126,6 +126,15 @@ header {
 .levelup-box:empty { display: none; }
 .levelup-box::before { content: "⭐ Level up (extra challenge)"; display: block; font-weight: bold; color: var(--accent-2); margin-bottom: 6px; }
 
+/* ---- Per-lesson checklist ---- */
+.steps-box { margin: 12px 0 4px; max-width: 70ch; background: #1a2230; border: 2px solid #2e3a52; border-radius: var(--radius); padding: 10px 12px; }
+.steps-box.hidden { display: none; }
+.steps-head { font-weight: bold; color: var(--accent); margin-bottom: 6px; font-size: 14px; }
+.step-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; cursor: pointer; font-size: 15px; }
+.step-row:hover { background: var(--panel-2); }
+.step-row input { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; flex: none; }
+.step-row.done span { color: var(--muted); text-decoration: line-through; }
+
 /* ---- Workspace ---- */
 #workspace { display: grid; grid-template-columns: 1fr 580px; gap: 18px; margin-top: 18px; align-items: start; }
 #editor-col { display: flex; flex-direction: column; min-width: 0; }

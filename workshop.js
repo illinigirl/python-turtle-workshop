@@ -258,13 +258,58 @@ const W = canvas.width, H = canvas.height;
 // Per-kid state lives on the server (so it follows them across devices) with
 // a localStorage mirror as an offline fallback. `kid` is the current coder.
 let kid = null;
-let state = { done: new Set(), code: {} };
+let state = { done: new Set(), code: {}, steps: {} };
 let doneSet = state.done;          // alias used throughout the UI code
 let profiles = ["Carter", "Harper"];
 let tutorAvailable = false;       // server told us the AI helper is on
 let helpHistory = [];             // recent {role, content} for the helper, per lesson
 const LAST_KID_KEY = "pyworkshop_lastkid";
 const cacheKey = (k) => "pyworkshop_kid_" + k;
+
+// --- Stable lesson IDs -----------------------------------------------------
+// Progress is keyed by a slug of the lesson TITLE, not its position in the
+// list. That way inserting or reordering lessons never scrambles saved work.
+function slugId(title) {
+  return String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+const lid = (i) => slugId(LESSONS[i].title);
+
+// The ORIGINAL lesson order (frozen). Used once to migrate old position-keyed
+// progress onto title slugs. Only the words matter — punctuation/emoji collapse.
+const LEGACY_TITLES = [
+  "Hello, Python!",
+  "Boxes that remember (variables)",
+  "Python is a calculator",
+  "Move the turtle",
+  "Repeat with a loop",
+  "Colors & thicker pens",
+  "Spirals & wow patterns",
+  "Ask a question (input & if)",
+  "GAME: Guess the Number",
+  "Build your own block (functions)",
+  "Commands that take a number",
+  "CAPSTONE: Your own creation",
+  "Blank canvas — make anything!",
+];
+const LEGACY_ID_ORDER = LEGACY_TITLES.map(slugId);
+
+// Old saved progress used numeric positions (done:[0,1], code:{"0":...}).
+function looksLegacy(d) {
+  if (!d) return false;
+  if (Array.isArray(d.done) && d.done.some((x) => /^\d+$/.test(String(x)))) return true;
+  if (Object.keys(d.code || {}).some((k) => /^\d+$/.test(k))) return true;
+  if (Object.keys(d.steps || {}).some((k) => /^\d+$/.test(k))) return true;
+  return false;
+}
+function migrateLegacy(d) {
+  const at = (i) => LEGACY_ID_ORDER[Number(i)];
+  const done = (d.done || []).map(at).filter(Boolean);
+  const code = {};
+  for (const [k, v] of Object.entries(d.code || {})) { const id = at(k); if (id) code[id] = v; }
+  const steps = {};
+  for (const [k, v] of Object.entries(d.steps || {})) { const id = at(k); if (id) steps[id] = v; }
+  return { done, code, steps };
+}
 
 /* coordinate transform: turtle (0,0)=center, +y up  ->  canvas pixels */
 const tx = (x) => W / 2 + x;
@@ -587,9 +632,9 @@ function offerErrorHelp(errLine) {
 /* ------------------------------------------------------------
    6) Lessons UI
    ------------------------------------------------------------ */
-function savedCodeFor(i) { return state.code[i]; }
+function savedCodeFor(i) { return state.code[lid(i)]; }
 function saveCodeFor(i, code) {
-  state.code[i] = code;
+  state.code[lid(i)] = code;
   schedulePersist();
 }
 
@@ -601,7 +646,7 @@ function schedulePersist() {
   persistTimer = setTimeout(persistNow, 600);
 }
 function snapshot() {
-  return { kid: kid, done: [...doneSet], code: state.code };
+  return { kid: kid, done: [...doneSet], code: state.code, steps: state.steps };
 }
 function persistNow() {
   if (!kid) return;
@@ -625,22 +670,38 @@ async function loadKid(name) {
   try { localStorage.setItem(LAST_KID_KEY, name); } catch (e) {}
   $("who-name").textContent = name;
 
-  let data = null;
+  let server = null;
   try {
     const r = await fetch("api/progress?kid=" + encodeURIComponent(name));
-    if (r.ok) data = await r.json();
+    if (r.ok) server = await r.json();
   } catch (e) { /* offline */ }
-  if (!data) {
-    try { data = JSON.parse(localStorage.getItem(cacheKey(name))) || {}; }
-    catch (e) { data = {}; }
-  }
 
-  state = { done: new Set(data.done || []), code: data.code || {} };
+  let cache = null;
+  try { cache = JSON.parse(localStorage.getItem(cacheKey(name))); } catch (e) {}
+
+  // Prefer whichever copy has more work in it. This makes the localStorage
+  // mirror a real backup: if the server record is empty or got reset but the
+  // browser still has progress, we restore from local and push it back.
+  const score = (a) => a
+    ? ((a.done || []).length + Object.keys(a.code || {}).length + Object.keys(a.steps || {}).length)
+    : -1;
+  let data, restoredFromCache = false;
+  if (score(cache) > score(server)) { data = cache; restoredFromCache = true; }
+  else { data = server || cache || {}; }
+
+  // One-time migration from position-keyed to title-slug-keyed progress.
+  const migrated = looksLegacy(data);
+  const norm = migrated ? migrateLegacy(data) : (data || {});
+
+  state = { done: new Set(norm.done || []), code: norm.code || {}, steps: norm.steps || {} };
   doneSet = state.done;
   current = 0;
   buildSidebar();
   renderLesson();
   $("picker").classList.add("hidden");
+  // Persist if we recovered from the local backup OR upgraded the old format,
+  // so the server copy ends up current and id-keyed.
+  if (restoredFromCache || migrated) persistNow();
 }
 
 // Build the "who's coding?" buttons from the server's profile list.
@@ -683,9 +744,9 @@ function buildSidebar() {
     }
     const li = document.createElement("li");
     li.dataset.index = i;
-    li.innerHTML = '<span class="tick">' + (doneSet.has(i) ? "✓" : "○") + '</span>' +
+    li.innerHTML = '<span class="tick">' + (doneSet.has(lid(i)) ? "✓" : "○") + '</span>' +
                    '<span>' + lesson.title + '</span>';
-    if (doneSet.has(i)) li.classList.add("done");
+    if (doneSet.has(lid(i))) li.classList.add("done");
     li.addEventListener("click", () => goTo(i));
     list.appendChild(li);
   });
@@ -701,7 +762,8 @@ function updateActive() {
 
 function updateProgress() {
   const total = LESSONS.length;
-  const done = [...doneSet].filter((i) => i < total).length;
+  const ids = new Set(LESSONS.map((_, i) => lid(i)));
+  const done = [...doneSet].filter((x) => ids.has(x)).length;
   $("progress-fill").style.width = (100 * done / total) + "%";
   $("progress-text").textContent = done + " / " + total;
 }
@@ -720,7 +782,8 @@ function renderLesson() {
   clearCanvas();
   $("prev-btn").disabled = current === 0;
   $("next-btn").disabled = current === LESSONS.length - 1;
-  $("done-btn").textContent = doneSet.has(current) ? "✓ Finished!" : "✓ I finished this!";
+  $("done-btn").textContent = doneSet.has(lid(current)) ? "✓ Finished!" : "✓ I finished this!";
+  renderSteps();
   updateActive();
   // fresh helper conversation for each lesson
   helpHistory = [];
@@ -728,6 +791,42 @@ function renderLesson() {
   $("help").classList.toggle("hidden", !tutorAvailable);
   // scroll lesson text back to top
   $("stage").scrollTop = 0;
+}
+
+// Render the per-lesson checklist so the learner can tick off each part.
+function renderSteps() {
+  const box = $("lesson-steps");
+  const steps = (typeof LESSON_STEPS !== "undefined" && LESSON_STEPS[current]) || [];
+  box.innerHTML = "";
+  if (!steps.length) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  const lessonId = lid(current);                 // captured for this render
+  const checked = state.steps[lessonId] || {};
+
+  const head = document.createElement("div");
+  head.className = "steps-head";
+  head.textContent = "✅ My checklist — tick each part as you finish it";
+  box.appendChild(head);
+
+  steps.forEach((label, i) => {
+    const row = document.createElement("label");
+    row.className = "step-row" + (checked[i] ? " done" : "");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!checked[i];
+    cb.addEventListener("change", () => {
+      if (!state.steps[lessonId]) state.steps[lessonId] = {};
+      if (cb.checked) state.steps[lessonId][i] = true;
+      else delete state.steps[lessonId][i];
+      row.classList.toggle("done", cb.checked);
+      schedulePersist();
+    });
+    const span = document.createElement("span");
+    span.textContent = label;
+    row.appendChild(cb);
+    row.appendChild(span);
+    box.appendChild(row);
+  });
 }
 
 /* ------------------------------------------------------------
@@ -874,12 +973,13 @@ function wireButtons() {
   });
 
   $("done-btn").addEventListener("click", () => {
-    if (doneSet.has(current)) doneSet.delete(current);
-    else doneSet.add(current);
+    const id = lid(current);
+    if (doneSet.has(id)) doneSet.delete(id);
+    else doneSet.add(id);
     persistNow();
     buildSidebar();
     renderLesson();
-    if (doneSet.has(current) && current < LESSONS.length - 1) {
+    if (doneSet.has(id) && current < LESSONS.length - 1) {
       setTimeout(() => goTo(current + 1), 350);
     }
   });

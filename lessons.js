@@ -120,6 +120,47 @@ print("Left over:", candy % friends)
 `
 },
 
+{
+  unit: "1 · Tell the computer what to do",
+  title: "Put it together: All About Me card",
+  intro: `
+    <p>You learned three big things: <b>print</b>, <b>variables</b> (boxes), and
+    <b>math</b>. Let's use all three at once to make an "All About Me" card!</p>
+    <pre>name = "Sam"
+age = 10
+days_old = age * 365
+print("Name: " + name)
+print("Age: " + str(age) + " (about " + str(days_old) + " days!)")</pre>
+    <p>Boxes hold your facts, math figures things out, and print shows it off.</p>`,
+  task: `<p>Make boxes for your <code>name</code>, <code>age</code>, and one
+    <code>favorite</code> thing. Use a little <b>math</b> on a box (like your age in
+    days), then <b>print</b> a neat card that uses all your boxes.</p>`,
+  levelUp: `<p>Add your age in <b>dog years</b> (<code>age * 7</code>), or how many
+    days until you turn 100 (<code>(100 - age) * 365</code>).</p>`,
+  starter:
+`name = "Sam"
+age = 10
+favorite = "pizza"
+
+# Use your boxes and some math to print an "All About Me" card!
+print(name)
+`,
+  solution:
+`name = "Sam"
+age = 10
+favorite = "pizza"
+
+days_old = age * 365
+dog_years = age * 7
+
+print("=== All About Me ===")
+print("Name: " + name)
+print("Age: " + str(age) + " (about " + str(days_old) + " days!)")
+print("Favorite thing: " + favorite)
+print("In dog years I'm " + str(dog_years) + "!")
+`
+},
+
 /* ===================== UNIT 2 ===================== */
 {
   unit: "2 · Meet the turtle 🐢",
@@ -302,6 +343,49 @@ for i in range(140):
     turtle.pencolor(colors[i % 6])
     turtle.forward(i)
     turtle.right(59)
+`
+},
+
+{
+  unit: "2 · Meet the turtle 🐢",
+  title: "Put it together: Turtle scene",
+  intro: `
+    <p>You can move the turtle, <b>loop</b>, and use <b>color</b>. Let's combine them
+    into a picture — like a flower made of shapes!</p>
+    <pre>import turtle
+colors = ["red", "orange", "yellow", "green", "blue", "purple"]
+for i in range(6):
+    turtle.pencolor(colors[i])
+    # draw a petal, then turn a little</pre>
+    <p>The trick: draw one shape (a "petal"), turn a little, and repeat with a loop.</p>`,
+  task: `<p>Draw a <b>flower</b> (or any scene) using a <code>for</code> loop, the
+    turtle, and a list of <b>colors</b>. Draw a shape, turn a bit, and let the loop
+    repeat it all the way around.</p>`,
+  levelUp: `<p>Add a <code>bgcolor</code> and draw a SECOND flower somewhere else.
+    Hint: <code>penup()</code>, <code>goto(x, y)</code>, <code>pendown()</code> to
+    move without drawing.</p>`,
+  starter:
+`import turtle
+turtle.bgcolor("black")
+turtle.pensize(2)
+
+colors = ["red", "orange", "yellow", "green", "blue", "purple"]
+for i in range(6):
+    turtle.pencolor(colors[i])
+    # draw one petal (a shape), then turn a little
+`,
+  solution:
+`import turtle
+turtle.bgcolor("black")
+turtle.pensize(2)
+
+colors = ["red", "orange", "yellow", "green", "blue", "purple"]
+for i in range(12):
+    turtle.pencolor(colors[i % 6])
+    for side in range(4):       # a square petal
+        turtle.forward(80)
+        turtle.right(90)
+    turtle.right(30)            # turn before the next petal
 `
 },
 
@@ -515,6 +599,58 @@ shape(12, 120, "magenta")
 `
 },
 
+{
+  unit: "4 · Make your own commands",
+  title: "Put it together: Stamp art",
+  intro: `
+    <p>Now you can build your own <b>functions</b> that take numbers. Let's use one
+    to "stamp" a shape over and over and make art!</p>
+    <pre>def shape(sides, size, color):
+    turtle.pencolor(color)
+    angle = 360 / sides
+    for i in range(sides):
+        turtle.forward(size)
+        turtle.right(angle)
+
+shape(5, 60, "magenta")</pre>
+    <p>Write the command once, then call it as many times as you like.</p>`,
+  task: `<p>Write a <code>shape(...)</code> function that draws a shape, then
+    <b>call it several times</b> with different sizes and colors to build a picture
+    or pattern.</p>`,
+  levelUp: `<p>Use a <code>for</code> loop to call your function many times, growing
+    the size or changing the color each time, for a cool spiral of shapes.</p>`,
+  starter:
+`import turtle
+
+def shape(sides, size, color):
+    turtle.pencolor(color)
+    angle = 360 / sides
+    for i in range(sides):
+        turtle.forward(size)
+        turtle.right(angle)
+
+# Call shape(...) a few times to make art!
+shape(5, 60, "magenta")
+`,
+  solution:
+`import turtle
+turtle.bgcolor("black")
+turtle.pensize(2)
+
+def shape(sides, size, color):
+    turtle.pencolor(color)
+    angle = 360 / sides
+    for i in range(sides):
+        turtle.forward(size)
+        turtle.right(angle)
+
+colors = ["red", "yellow", "cyan", "magenta", "lime"]
+for i in range(10):
+    shape(5, 20 + i * 12, colors[i % 5])
+    turtle.right(36)
+`
+},
+
 /* ===================== UNIT 5 ===================== */
 {
   unit: "5 · Build something big",
@@ -617,4 +753,29 @@ for i in range(200):
 `
 }
 
+];
+
+/* ============================================================
+   PER-LESSON CHECKLISTS
+   Short, tickable steps so a learner can track what they've done
+   within a lesson. Index-aligned with LESSONS above. ⭐ = the
+   optional level-up step. Empty array = no checklist (free play).
+   ============================================================ */
+const LESSON_STEPS = [
+  ["Print your name", "Print your age", "Print your favorite food", "⭐ Print a little picture made of symbols"],
+  ["Make a name box and an age box", "Print one sentence that uses BOTH boxes", "⭐ Print how many years until you're 16"],
+  ["Print how much candy each friend gets", "⭐ Print the leftover candy with %"],
+  ["Make name, age, and favorite boxes", "Use math on a box (like age * 365)", "Print a card using all your boxes", "⭐ Add dog years or days-until-birthday"],
+  ["Draw a big letter L", "Draw another straight-line letter (T, E, F, H, I)", "⭐ Draw a triangle"],
+  ["Draw the square with a for loop", "Change it into a hexagon (6 sides)", "⭐ Draw a 5-pointed star"],
+  ["Draw a shape with a thick, colored pen", "Change the color on different sides", "⭐ Use a list of colors in the loop"],
+  ["Run the spiral and watch it", "Try different turn numbers (89, 120, 144)", "⭐ Make a rainbow spiral with a color list"],
+  ["Use a for loop to repeat a shape", "Change the pen color as you go", "Turn a little each time to make a flower", "⭐ Add a background color and a second flower"],
+  ["Ask a question with input()", "Respond differently with if and else", "⭐ Add a third answer with elif"],
+  ["Play the guessing game", "Make it yours (change the range or messages)", "⭐ Count how many guesses it took"],
+  ["Write your own function with def", "Call it a few times around the canvas", "⭐ Make a flower using a function"],
+  ["Call shape() with different numbers of sides", "Move or change color between shapes", "⭐ Add a color to shape()"],
+  ["Write a function that draws a shape", "Call it a few times with different numbers", "Use color and size to make it cool", "⭐ Loop your function for a big pattern"],
+  ["Pick your project (art, story, or game)", "Build it!", "⭐ Add one surprise (random event, secret, hidden room)"],
+  [],
 ];
