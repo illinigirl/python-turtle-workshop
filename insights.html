@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workshop Insights 🧠</title>
+  <style>
+    :root { --bg:#1b1e2b; --panel:#252a3d; --panel2:#2e3450; --ink:#eef1ff; --muted:#9aa3c7;
+            --accent:#57c785; --gold:#ffb454; --blue:#4ea1ff; --pink:#ff7eb6; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,sans-serif; padding:24px; }
+    h1 { margin:0 0 4px; } .sub { color:var(--muted); margin-bottom:20px; }
+    .totals { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+    .stat { background:var(--panel); border-radius:12px; padding:12px 18px; min-width:120px; }
+    .stat .n { font-size:28px; font-weight:bold; } .stat .l { color:var(--muted); font-size:13px; }
+    .card { background:var(--panel); border-radius:14px; padding:16px 18px; margin-bottom:18px; }
+    .card h2 { margin:0 0 12px; font-size:18px; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { text-align:left; padding:8px 10px; border-bottom:1px solid #ffffff14; vertical-align:top; }
+    th { color:var(--muted); font-weight:600; font-size:13px; }
+    .num { text-align:right; font-variant-numeric:tabular-nums; }
+    .pill { display:inline-block; background:var(--panel2); border-radius:99px; padding:2px 9px; font-size:12px; margin:2px 3px 0 0; }
+    .err { color:#ff9b8f; } .q { color:var(--blue); }
+    button { font-family:inherit; cursor:pointer; border:none; border-radius:10px; padding:10px 16px;
+             font-size:15px; font-weight:bold; background:var(--accent); color:#08210f; }
+    button:disabled { opacity:.5; cursor:wait; }
+    .ghost { background:var(--panel2); color:var(--ink); }
+    #summary { white-space:pre-wrap; line-height:1.5; margin-top:14px; }
+    #summary h3, #summary strong { color:var(--gold); }
+    #summary code { background:#11131d; padding:1px 5px; border-radius:5px; font-family:ui-monospace,Menlo,monospace; color:var(--accent); }
+    .recent li { margin:5px 0; color:var(--muted); font-size:14px; }
+    .recent .who { color:var(--ink); font-weight:bold; }
+    .muted { color:var(--muted); }
+    .refresh { float:right; }
+  </style>
+</head>
+<body>
+  <h1>🧠 Workshop Insights</h1>
+  <div class="sub">Where the kids get stuck — questions they ask the helper and errors they hit. Use it to tweak lessons.</div>
+
+  <div class="totals" id="totals"></div>
+
+  <div class="card">
+    <h2>🤖 What should I fix? <button class="refresh ghost" id="refresh" type="button">↻ Refresh data</button></h2>
+    <p class="muted">Have Claude read the usage and suggest concrete lesson tweaks.</p>
+    <button id="summarize" type="button">🧠 Ask Claude what to fix</button>
+    <div id="summary"></div>
+  </div>
+
+  <div class="card">
+    <h2>📚 Per-lesson struggle</h2>
+    <table id="lessons-table">
+      <thead><tr><th>Lesson</th><th class="num">Questions</th><th class="num">Errors</th><th>Common mistakes</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>🕑 Recent activity</h2>
+    <ul class="recent" id="recent"></ul>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+    function md(t){
+      let s = esc(t);
+      s = s.replace(/^\s*#{1,6}\s*(.+)$/gm, "<h3>$1</h3>");
+      s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+      s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      return s;
+    }
+    function ago(ts){
+      const s = Math.max(0, Math.floor(Date.now()/1000) - ts);
+      if (s < 60) return s + "s ago";
+      if (s < 3600) return Math.floor(s/60) + "m ago";
+      if (s < 86400) return Math.floor(s/3600) + "h ago";
+      return Math.floor(s/86400) + "d ago";
+    }
+
+    async function load(){
+      let d = { lessons:{}, recent:[], totals:{events:0,questions:0,errors:0} };
+      try { const r = await fetch("api/insights"); if (r.ok) d = await r.json(); } catch(e){}
+
+      $("totals").innerHTML =
+        stat(d.totals.questions, "questions asked") +
+        stat(d.totals.errors, "errors hit") +
+        stat(d.totals.events, "total events");
+
+      // per-lesson, sorted by struggle
+      const rows = Object.entries(d.lessons)
+        .sort((a,b) => (b[1].questions+b[1].errors) - (a[1].questions+a[1].errors));
+      const tbody = $("lessons-table").querySelector("tbody");
+      tbody.innerHTML = rows.length ? "" : '<tr><td colspan="4" class="muted">No data yet — once the kids use it, this fills in.</td></tr>';
+      for (const [name, s] of rows){
+        const mistakes = Object.entries(s.errorTypes||{}).sort((a,b)=>b[1]-a[1])
+          .map(([t,n]) => '<span class="pill err">'+esc(t)+' ×'+n+'</span>').join(" ");
+        const tr = document.createElement("tr");
+        tr.innerHTML = "<td>"+esc(name)+"</td><td class='num q'>"+s.questions+"</td><td class='num err'>"+s.errors+"</td><td>"+(mistakes||'<span class="muted">—</span>')+"</td>";
+        tbody.appendChild(tr);
+      }
+
+      // recent
+      $("recent").innerHTML = d.recent.length ? "" : '<li class="muted">Nothing yet.</li>';
+      d.recent.forEach((e) => {
+        const li = document.createElement("li");
+        const who = '<span class="who">'+esc(e.kid||"?")+'</span>';
+        const when = '<span class="muted"> · '+ago(e.ts||0)+'</span>';
+        if (e.kind === "ask")
+          li.innerHTML = who+' asked <span class="q">['+esc(e.mode||"ask")+']</span> on <i>'+esc(e.lesson||"?")+'</i>: "'+esc(e.question||"")+'"'+when;
+        else
+          li.innerHTML = who+' hit <span class="err">'+esc(e.errorType||"error")+'</span> on <i>'+esc(e.lesson||"?")+'</i>'+when;
+        $("recent").appendChild(li);
+      });
+    }
+    function stat(n,l){ return '<div class="stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+
+    $("refresh").addEventListener("click", load);
+    $("summarize").addEventListener("click", async () => {
+      const btn = $("summarize");
+      btn.disabled = true; $("summary").textContent = "Thinking… (reading the logs)";
+      try {
+        const r = await fetch("api/insights/summary", { method:"POST", headers:{"Content-Type":"application/json"}, body:"{}" });
+        const d = await r.json().catch(()=>({}));
+        $("summary").innerHTML = r.ok ? md(d.summary||"") : '<span class="err">'+esc(d.error||"Couldn't summarize.")+'</span>';
+      } catch(e){ $("summary").innerHTML = '<span class="err">Couldn\'t reach the server.</span>'; }
+      finally { btn.disabled = false; }
+    });
+
+    load();
+  </script>
+</body>
+</html>

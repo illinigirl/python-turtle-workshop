@@ -581,6 +581,35 @@ function showPythonError(e) {
   const last = lines[lines.length - 1] || "Something went wrong.";
   printConsole("\n🐛 Oops! " + friendlyError(last) + "\n", true);
   offerErrorHelp(last);
+  logError(last);
+}
+
+// Bucket an error line into a kid-readable category (matches friendlyError).
+function errorCategory(line) {
+  if (/cannot assign to|can't assign to/.test(line)) return "value on wrong side of =";
+  if (/IndentationError|unexpected indent|expected an indented/.test(line)) return "indentation / spacing";
+  if (/unterminated|EOL while scanning/.test(line)) return "missing quote";
+  if (/NameError/.test(line)) return "unknown name / typo";
+  if (/TypeError/.test(line)) return "mixing words & numbers";
+  if (/ValueError/.test(line)) return "bad number input";
+  if (/SyntaxError|invalid syntax/.test(line)) return "syntax (spaces in name / missing colon)";
+  return "other";
+}
+
+// Fire-and-forget: log the mistake so lessons can be improved from real usage.
+function logError(line) {
+  if (!kid) return;
+  fetch("api/log_error", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      kid,
+      lesson: LESSONS[current].title,
+      errorType: errorCategory(line),
+      error: line,
+    }),
+    keepalive: true,
+  }).catch(() => {});
 }
 
 // translate common Python errors into kid language — MOST SPECIFIC FIRST

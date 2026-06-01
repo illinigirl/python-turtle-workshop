@@ -68,6 +68,7 @@ STATIC = {
     "style.css": "text/css; charset=utf-8",
     "lessons.js": "application/javascript; charset=utf-8",
     "workshop.js": "application/javascript; charset=utf-8",
+    "insights.html": "text/html; charset=utf-8",  # grown-up "where do kids struggle" page
 }
 
 # One lock guards all reads/writes of the progress file.
@@ -169,6 +170,103 @@ def gallery_delete(kid, fname):
             _gallery_save(keep)
             return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# Learning insights — log what kids ask + the errors they hit, so lessons can
+# be improved from real usage. Append-only JSONL; private (under data/).
+# ---------------------------------------------------------------------------
+INSIGHTS_FILE = os.path.join(DATA_DIR, "insights.jsonl")
+INSIGHTS_MODEL = os.environ.get("INSIGHTS_MODEL", "claude-opus-4-8")
+_log_lock = threading.Lock()
+
+
+def log_event(ev):
+    """Append one event. Never let logging break the actual request."""
+    try:
+        ev["ts"] = int(time.time())
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with _log_lock:
+            with open(INSIGHTS_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps(ev) + "\n")
+    except Exception:
+        pass
+
+
+def _insights_read():
+    out = []
+    try:
+        with open(INSIGHTS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try: out.append(json.loads(line))
+                    except json.JSONDecodeError: pass
+    except FileNotFoundError:
+        pass
+    return out
+
+
+def insights_data():
+    """Aggregate the log into per-lesson tallies + recent activity."""
+    events = _insights_read()
+    lessons = {}
+    for e in events:
+        L = e.get("lesson") or "(unknown)"
+        d = lessons.setdefault(L, {"questions": 0, "errors": 0, "modes": {}, "errorTypes": {}})
+        if e.get("kind") == "ask":
+            d["questions"] += 1
+            m = e.get("mode", "ask")
+            d["modes"][m] = d["modes"].get(m, 0) + 1
+        elif e.get("kind") == "error":
+            d["errors"] += 1
+            t = e.get("errorType", "other")
+            d["errorTypes"][t] = d["errorTypes"].get(t, 0) + 1
+    totals = {
+        "events": len(events),
+        "questions": sum(1 for e in events if e.get("kind") == "ask"),
+        "errors": sum(1 for e in events if e.get("kind") == "error"),
+    }
+    return {"lessons": lessons, "recent": events[-40:][::-1], "totals": totals}
+
+
+def insights_ai_summary():
+    """Have Claude read the struggle data and suggest lesson tweaks."""
+    data = insights_data()
+    if data["totals"]["events"] == 0:
+        return "No activity has been logged yet. Once the kids use the workshop, come back here for suggestions."
+
+    # Build a compact, sorted picture of where kids struggle.
+    items = sorted(data["lessons"].items(),
+                   key=lambda kv: kv[1]["questions"] + kv[1]["errors"], reverse=True)
+    lines = []
+    for name, d in items:
+        if d["questions"] == 0 and d["errors"] == 0:
+            continue
+        et = ", ".join("%s x%d" % (k, v) for k, v in sorted(d["errorTypes"].items(), key=lambda x: -x[1]))
+        lines.append("- %s: %d questions, %d errors%s" % (name, d["questions"], d["errors"], (" (" + et + ")" if et else "")))
+    # a sample of actual questions (richest signal)
+    qs = [e for e in _insights_read() if e.get("kind") == "ask" and e.get("question")]
+    sample = qs[-25:]
+    qlines = ["- [%s] %s" % (e.get("lesson", "?"), str(e.get("question", ""))[:160]) for e in sample]
+
+    user = ("Here is real usage data from the workshop.\n\nPER-LESSON struggle "
+            "(most to least):\n" + "\n".join(lines) +
+            "\n\nA SAMPLE of recent questions kids asked:\n" + "\n".join(qlines))
+    system = (
+        "You help improve a kids' (ages 9-13) Python turtle workshop by reviewing real "
+        "usage data — the questions kids asked the helper and the errors they hit. "
+        "Identify the lessons where kids struggle most and, for each, say briefly what is "
+        "likely confusing and ONE concrete, specific tweak to the lesson (clearer wording, "
+        "a better example, an extra step, reordering, or a hint). Prioritize the biggest "
+        "pain points. Be concrete and concise — this is a to-do list for improving lessons. "
+        "Use short markdown sections per lesson.")
+    client = _get_client()
+    resp = client.messages.create(
+        model=INSIGHTS_MODEL, max_tokens=1500, system=system,
+        messages=[{"role": "user", "content": user}],
+    )
+    return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +417,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(503, {"error": "The helper isn't set up (no API key)."})
         if not str(payload.get("question", "")).strip():
             return self._send(400, {"error": "no question"})
+        # log the question (signal for improving lessons)
+        log_event({"kind": "ask", "kid": _norm(payload.get("kid")) or "?",
+                   "mode": payload.get("mode", "ask"),
+                   "lesson": str(payload.get("lessonTitle", ""))[:120],
+                   "question": str(payload.get("question", ""))[:300],
+                   "errorText": str(payload.get("errorText", ""))[:200]})
         try:
             answer = answer_question(payload)
             return self._send(200, {"answer": answer})
@@ -353,6 +457,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "unknown kid"})
             return self._send(200, {"drawings": gallery_list(kid)})
 
+        if path == "/api/insights":
+            return self._send(200, insights_data())
+
         # saved drawing images
         if path.startswith("/gallery/"):
             safe = os.path.basename(path[len("/gallery/"):])
@@ -376,7 +483,8 @@ class Handler(BaseHTTPRequestHandler):
     # ---- POST ----
     def do_POST(self):
         path = urlparse(self.path).path
-        if path not in ("/api/progress", "/api/ask", "/api/gallery", "/api/gallery_delete"):
+        if path not in ("/api/progress", "/api/ask", "/api/gallery", "/api/gallery_delete",
+                        "/api/log_error", "/api/insights/summary"):
             return self._send(404, {"error": "not found"})
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -387,9 +495,26 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/ask":
             return self._handle_ask(payload)
 
+        # grown-up insights summary — no kid needed
+        if path == "/api/insights/summary":
+            if not tutor_available():
+                return self._send(503, {"error": "AI summary needs an API key."})
+            try:
+                return self._send(200, {"summary": insights_ai_summary()})
+            except Exception as e:
+                print("insights summary error:", repr(e))
+                return self._send(502, {"error": "Couldn't generate a summary right now."})
+
         kid = _norm(payload.get("kid"))
         if not kid:
             return self._send(400, {"error": "unknown kid"})
+
+        if path == "/api/log_error":
+            log_event({"kind": "error", "kid": kid,
+                       "lesson": str(payload.get("lesson", ""))[:120],
+                       "errorType": str(payload.get("errorType", "other"))[:60],
+                       "error": str(payload.get("error", ""))[:200]})
+            return self._send(200, {"ok": True})
 
         if path == "/api/gallery":
             try:
