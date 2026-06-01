@@ -17,12 +17,12 @@ Parameters:
     Description: Fallback profile buttons until nickname+PIN accounts ship
   TutorModel:
     Type: String
-    Default: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-    Description: Bedrock inference-profile id for the AI helper
+    Default: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    Description: Bedrock inference-profile id for the AI helper (Haiku = fast/cheap)
   InsightsModel:
     Type: String
-    Default: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-    Description: Bedrock inference-profile id for the insights summary
+    Default: "us.anthropic.claude-opus-4-8"
+    Description: Bedrock inference-profile id for the insights summary (Opus = best analysis)
 
 Conditions:
   HasDomain: !Not [!Equals [!Ref CertificateArn, ""]]

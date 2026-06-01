@@ -1,21 +1,23 @@
 """Python Turtle Workshop — single Lambda behind an HTTP API.
 
-Serves the static app at / and the JSON API under /api/*. Same-origin, so no
-CORS. Mirrors the Pi's server.py behavior, but storage is DynamoDB + S3 and the
-AI helper runs on Bedrock.
+Serves the static app at / and the JSON API under /api/*. Same-origin (no CORS).
+Storage is DynamoDB + S3; the AI helper runs on Bedrock.
 
-PHASE 1 (this file): serves the static app + /api/profiles. The frontend works
-fully in localStorage mode (progress saved per-browser; AI/gallery hidden).
-PHASE 2 will add: progress (DynamoDB), ask (Bedrock), gallery (S3), insights,
-and nickname+PIN accounts.
+Phase 2a (this file): static + AI helper (Bedrock) + insights.
+Phase 2b will add: progress (DynamoDB), gallery (S3), nickname+PIN accounts.
 """
+import base64
 import json
 import os
 
+import ai
+import llm
+import store
+
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 PROFILES = [p.strip() for p in os.environ.get("WORKSHOP_PROFILES", "Explorer,Builder").split(",") if p.strip()]
+INSIGHTS_MODEL = os.environ.get("INSIGHTS_MODEL", "us.anthropic.claude-opus-4-8")
 
-# served static files -> content type
 STATIC = {
     "index.html": "text/html; charset=utf-8",
     "style.css": "text/css; charset=utf-8",
@@ -35,11 +37,39 @@ def _read_static(name):
 
 def _resp(status, body, content_type="application/json"):
     payload = body if isinstance(body, str) else json.dumps(body)
-    return {
-        "statusCode": status,
-        "headers": {"content-type": content_type, "cache-control": "no-cache"},
-        "body": payload,
-    }
+    return {"statusCode": status,
+            "headers": {"content-type": content_type, "cache-control": "no-cache"},
+            "body": payload}
+
+
+def _body(event):
+    raw = event.get("body") or "{}"
+    if event.get("isBase64Encoded"):
+        raw = base64.b64decode(raw).decode("utf-8")
+    return json.loads(raw or "{}")
+
+
+def _insights_summary():
+    data = store.insights_data()
+    if data["totals"]["events"] == 0:
+        return "No activity has been logged yet. Once the kids use the workshop, come back here for suggestions."
+    items = sorted(data["lessons"].items(), key=lambda kv: kv[1]["questions"] + kv[1]["errors"], reverse=True)
+    lines = []
+    for name, d in items:
+        if d["questions"] == 0 and d["errors"] == 0:
+            continue
+        et = ", ".join("%s x%d" % (k, v) for k, v in sorted(d["errorTypes"].items(), key=lambda x: -x[1]))
+        lines.append("- %s: %d questions, %d errors%s" % (name, d["questions"], d["errors"], (" (" + et + ")" if et else "")))
+    qlines = ["- [%s] %s" % (q["lesson"], q["question"][:160]) for q in store.recent_questions(25)]
+    user = ("Here is real usage data from the workshop.\n\nPER-LESSON struggle (most to least):\n"
+            + "\n".join(lines) + "\n\nA SAMPLE of recent questions kids asked:\n" + "\n".join(qlines))
+    system = (
+        "You help improve a kids' (ages 9-13) Python turtle workshop by reviewing real usage "
+        "data — the questions kids asked and the errors they hit. Identify the lessons where "
+        "kids struggle most and, for each, say briefly what is likely confusing and ONE concrete "
+        "tweak. Prioritize the biggest pain points. Be concrete and concise — a to-do list for "
+        "improving lessons. Use short markdown sections per lesson.")
+    return llm.chat([{"role": "user", "content": user}], system, INSIGHTS_MODEL, max_tokens=1500)
 
 
 def handler(event, context):
@@ -48,17 +78,49 @@ def handler(event, context):
     path = event.get("rawPath", "/")
 
     try:
+        # ---- static ----
         if path == "/" or path == "/index.html":
             return _resp(200, _read_static("index.html"), STATIC["index.html"])
-
         name = path.lstrip("/")
         if name in STATIC:
             return _resp(200, _read_static(name), STATIC[name])
 
+        # ---- GET API ----
         if path == "/api/profiles":
-            # tutor=False in phase 1 (the /api/ask route isn't wired yet, so the
-            # frontend correctly hides the AI helper).
-            return _resp(200, {"profiles": PROFILES, "tutor": False})
+            return _resp(200, {"profiles": PROFILES, "tutor": True, "accounts": False})
+        if path == "/api/insights":
+            return _resp(200, store.insights_data())
+
+        # ---- POST API ----
+        if method == "POST":
+            payload = _body(event)
+
+            if path == "/api/ask":
+                if not str(payload.get("question", "")).strip():
+                    return _resp(400, {"error": "no question"})
+                store.log_event({"kind": "ask", "kid": payload.get("kid", "?"),
+                                 "mode": payload.get("mode", "ask"),
+                                 "lesson": payload.get("lessonTitle", ""),
+                                 "question": payload.get("question", "")})
+                try:
+                    return _resp(200, {"answer": ai.answer(payload)})
+                except Exception as e:
+                    print("ask error:", repr(e))
+                    return _resp(502, {"error": "The helper is taking a quick break — try again in a moment."})
+
+            if path == "/api/log_error":
+                store.log_event({"kind": "error", "kid": payload.get("kid", "?"),
+                                 "lesson": payload.get("lesson", ""),
+                                 "errorType": payload.get("errorType", "other"),
+                                 "error": payload.get("error", "")})
+                return _resp(200, {"ok": True})
+
+            if path == "/api/insights/summary":
+                try:
+                    return _resp(200, {"summary": _insights_summary()})
+                except Exception as e:
+                    print("insights summary error:", repr(e))
+                    return _resp(502, {"error": "Couldn't generate a summary right now."})
 
         return _resp(404, {"error": "not found", "path": path})
     except Exception as e:
