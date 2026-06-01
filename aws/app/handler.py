@@ -91,7 +91,9 @@ def handler(event, context):
 
         # ---- GET API ----
         if path == "/api/profiles":
-            return _resp(200, {"profiles": PROFILES, "tutor": True, "accounts": True})
+            # accounts mode uses the login form, not profile buttons — don't
+            # expose any names here.
+            return _resp(200, {"profiles": [], "tutor": True, "accounts": True})
         if path == "/api/insights":
             return _resp(200, store.insights_data())
         if path == "/api/progress" and method == "GET":
