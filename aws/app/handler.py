@@ -1,10 +1,8 @@
 """Python Turtle Workshop — single Lambda behind an HTTP API.
 
 Serves the static app at / and the JSON API under /api/*. Same-origin (no CORS).
-Storage is DynamoDB + S3; the AI helper runs on Bedrock.
-
-Phase 2a (this file): static + AI helper (Bedrock) + insights.
-Phase 2b will add: progress (DynamoDB), gallery (S3), nickname+PIN accounts.
+Storage is DynamoDB + S3; the AI helper runs on Bedrock; accounts are nickname +
+PIN (PIN hashed) with a stateless HMAC token gating progress + gallery writes.
 """
 import base64
 import json
@@ -49,6 +47,11 @@ def _body(event):
     return json.loads(raw or "{}")
 
 
+def _token(event, payload):
+    headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+    return headers.get("x-workshop-token") or payload.get("token")
+
+
 def _insights_summary():
     data = store.insights_data()
     if data["totals"]["events"] == 0:
@@ -76,6 +79,7 @@ def handler(event, context):
     http = event.get("requestContext", {}).get("http", {})
     method = http.get("method", "GET")
     path = event.get("rawPath", "/")
+    params = event.get("queryStringParameters") or {}
 
     try:
         # ---- static ----
@@ -87,13 +91,35 @@ def handler(event, context):
 
         # ---- GET API ----
         if path == "/api/profiles":
-            return _resp(200, {"profiles": PROFILES, "tutor": True, "accounts": False})
+            return _resp(200, {"profiles": PROFILES, "tutor": True, "accounts": True})
         if path == "/api/insights":
             return _resp(200, store.insights_data())
+        if path == "/api/progress" and method == "GET":
+            kid = params.get("kid", "")
+            if not store.check_token(kid, _token(event, {})):
+                return _resp(401, {"error": "not logged in"})
+            return _resp(200, store.get_progress(kid))
+        if path == "/api/gallery" and method == "GET":
+            kid = params.get("kid", "")
+            if not store.check_token(kid, _token(event, {})):
+                return _resp(401, {"error": "not logged in"})
+            return _resp(200, {"drawings": store.gallery_list(kid)})
 
         # ---- POST API ----
         if method == "POST":
             payload = _body(event)
+
+            if path == "/api/signup":
+                token, err = store.create_account(payload.get("nick"), payload.get("pin"))
+                if err:
+                    return _resp(400, {"error": err})
+                return _resp(200, {"ok": True, "token": token, "nick": store._nick(payload.get("nick"))})
+
+            if path == "/api/login":
+                token, err = store.login(payload.get("nick"), payload.get("pin"))
+                if err:
+                    return _resp(401, {"error": err})
+                return _resp(200, {"ok": True, "token": token, "nick": store._nick(payload.get("nick"))})
 
             if path == "/api/ask":
                 if not str(payload.get("question", "")).strip():
@@ -121,6 +147,28 @@ def handler(event, context):
                 except Exception as e:
                     print("insights summary error:", repr(e))
                     return _resp(502, {"error": "Couldn't generate a summary right now."})
+
+            kid = payload.get("kid", "")
+
+            if path == "/api/progress":
+                if not store.check_token(kid, _token(event, payload)):
+                    return _resp(401, {"error": "not logged in"})
+                store.put_progress(kid, payload.get("done", []), payload.get("code", {}), payload.get("steps", {}))
+                return _resp(200, {"ok": True})
+
+            if path == "/api/gallery":
+                if not store.check_token(kid, _token(event, payload)):
+                    return _resp(401, {"error": "not logged in"})
+                try:
+                    f = store.gallery_add(kid, payload.get("image"), payload.get("title"), payload.get("lesson"))
+                    return _resp(200, {"ok": True, "file": f})
+                except ValueError as e:
+                    return _resp(400, {"error": str(e)})
+
+            if path == "/api/gallery_delete":
+                if not store.check_token(kid, _token(event, payload)):
+                    return _resp(401, {"error": "not logged in"})
+                return _resp(200, {"ok": store.gallery_delete(kid, payload.get("file", ""))})
 
         return _resp(404, {"error": "not found", "path": path})
     except Exception as e:

@@ -262,9 +262,19 @@ let state = { done: new Set(), code: {}, steps: {} };
 let doneSet = state.done;          // alias used throughout the UI code
 let profiles = ["Carter", "Harper"];
 let tutorAvailable = false;       // server told us the AI helper is on
+let accountsMode = false;         // server uses nickname+PIN accounts (AWS) vs fixed profiles (Pi)
+let authToken = null;             // HMAC token after login (accounts mode)
 let helpHistory = [];             // recent {role, content} for the helper, per lesson
 const LAST_KID_KEY = "pyworkshop_lastkid";
+const TOKEN_KEY = "pyworkshop_token";
 const cacheKey = (k) => "pyworkshop_kid_" + k;
+
+// Auth header for API calls (only set in accounts mode after login).
+function authHeaders(base) {
+  const h = base || {};
+  if (authToken) h["x-workshop-token"] = authToken;
+  return h;
+}
 
 // --- Stable lesson IDs -----------------------------------------------------
 // Progress is keyed by a slug of the lesson TITLE, not its position in the
@@ -601,7 +611,7 @@ function logError(line) {
   if (!kid) return;
   fetch("api/log_error", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       kid,
       lesson: LESSONS[current].title,
@@ -681,10 +691,12 @@ function persistNow() {
   if (!kid) return;
   const payload = snapshot();
   try { localStorage.setItem(cacheKey(kid), JSON.stringify(payload)); } catch (e) {}
+  // include the token in the body too, so sendBeacon (which can't set headers) works
+  const body = authToken ? { ...payload, token: authToken } : payload;
   fetch("api/progress", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
     keepalive: true,
   }).catch(() => {/* offline: localStorage mirror has it */});
 }
@@ -701,7 +713,7 @@ async function loadKid(name) {
 
   let server = null;
   try {
-    const r = await fetch("api/progress?kid=" + encodeURIComponent(name));
+    const r = await fetch("api/progress?kid=" + encodeURIComponent(name), { headers: authHeaders() });
     if (r.ok) server = await r.json();
   } catch (e) { /* offline */ }
 
@@ -733,7 +745,8 @@ async function loadKid(name) {
   if (restoredFromCache || migrated) persistNow();
 }
 
-// Build the "who's coding?" buttons from the server's profile list.
+// Build the picker: a nickname+PIN login/signup form (accounts mode, AWS) or
+// fixed profile buttons (Pi).
 async function buildPicker() {
   try {
     const r = await fetch("api/profiles");
@@ -741,12 +754,15 @@ async function buildPicker() {
       const data = await r.json();
       profiles = data.profiles || profiles;
       tutorAvailable = !!data.tutor;
+      accountsMode = !!data.accounts;
     }
   } catch (e) { /* static-only mode: keep defaults, no tutor */ }
 
-  const avatars = ["🧑‍🚀", "👧", "🦊", "🐢", "🦉", "🐱", "🦄", "🐼"];
   const box = $("picker-buttons");
   box.innerHTML = "";
+  if (accountsMode) { renderLoginForm(box); return; }
+
+  const avatars = ["🧑‍🚀", "👧", "🦊", "🐢", "🦉", "🐱", "🦄", "🐼"];
   profiles.forEach((name) => {
     const b = document.createElement("button");
     b.className = "kid-btn";
@@ -755,6 +771,54 @@ async function buildPicker() {
     b.addEventListener("click", () => loadKid(name));
     box.appendChild(b);
   });
+}
+
+function renderLoginForm(box) {
+  box.innerHTML =
+    '<div class="login-box">' +
+    '  <input id="login-nick" placeholder="your name (a nickname is great!)" maxlength="24" autocomplete="off" autocapitalize="off" />' +
+    '  <input id="login-pin" placeholder="secret PIN (4 numbers)" inputmode="numeric" maxlength="4" />' +
+    '  <div class="login-actions">' +
+    '    <button id="login-go" class="btn btn-run" type="button">Log in</button>' +
+    '    <button id="signup-go" class="btn" type="button">Create new</button>' +
+    '  </div>' +
+    '  <div id="login-msg" class="login-msg"></div>' +
+    '  <div class="login-hint">New here? Pick a name + a 4-number PIN and tap <b>Create new</b>. ' +
+    'Coming back? Type the same name + PIN and tap <b>Log in</b>.</div>' +
+    '</div>';
+  $("login-go").addEventListener("click", () => doAuth("login"));
+  $("signup-go").addEventListener("click", () => doAuth("signup"));
+  $("login-pin").addEventListener("keydown", (e) => { if (e.key === "Enter") doAuth("login"); });
+}
+
+async function doAuth(action) {
+  const nick = ($("login-nick").value || "").trim();
+  const pin = ($("login-pin").value || "").trim();
+  const msg = $("login-msg");
+  if (nick.length < 2) { msg.textContent = "Type a name first (at least 2 letters)."; return; }
+  if (!/^\d{4}$/.test(pin)) { msg.textContent = "Your PIN must be exactly 4 numbers."; return; }
+  msg.textContent = action === "signup" ? "Creating your spot…" : "Logging in…";
+  $("login-go").disabled = $("signup-go").disabled = true;
+  try {
+    const r = await fetch("api/" + action, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nick, pin }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data.token) {
+      authToken = data.token;
+      try { localStorage.setItem(TOKEN_KEY, authToken); localStorage.setItem(LAST_KID_KEY, data.nick); } catch (e) {}
+      await loadKid(data.nick);
+    } else {
+      msg.textContent = data.error || "That didn't work — try again.";
+    }
+  } catch (e) {
+    msg.textContent = "Couldn't reach the server. Try again in a moment.";
+  } finally {
+    const g = $("login-go"), s = $("signup-go");
+    if (g) g.disabled = false;
+    if (s) s.disabled = false;
+  }
 }
 
 function showPicker() { $("picker").classList.remove("hidden"); }
@@ -970,7 +1034,7 @@ async function askHelper(question, mode = "ask", errorText = "") {
   try {
     const r = await fetch("api/ask", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         question,
         mode,
@@ -1038,7 +1102,7 @@ async function saveDrawing() {
   try {
     const r = await fetch("api/gallery", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ kid, image, title, lesson: LESSONS[current].title }),
     });
     const data = await r.json().catch(() => ({}));
@@ -1054,7 +1118,7 @@ async function openGallery() {
   $("gallery-modal").classList.remove("hidden");
   let drawings = [];
   try {
-    const r = await fetch("api/gallery?kid=" + encodeURIComponent(kid));
+    const r = await fetch("api/gallery?kid=" + encodeURIComponent(kid), { headers: authHeaders() });
     if (r.ok) drawings = (await r.json()).drawings || [];
   } catch (e) {}
   renderGallery(drawings);
@@ -1071,7 +1135,7 @@ function renderGallery(drawings) {
     const card = document.createElement("div");
     card.className = "gal-card";
     const img = document.createElement("img");
-    img.src = "gallery/" + d.file;
+    img.src = d.url || ("gallery/" + d.file);   // AWS returns a presigned URL
     img.alt = d.title;
     img.loading = "lazy";
     const meta = document.createElement("div");
@@ -1097,7 +1161,7 @@ async function deleteDrawing(file) {
   try {
     await fetch("api/gallery_delete", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ kid, file }),
     });
   } catch (e) {}
@@ -1136,6 +1200,12 @@ function wireButtons() {
 
   $("who").addEventListener("click", () => {
     if (kid && editor) { saveCodeFor(current, editor.getValue()); persistNow(); }
+    if (accountsMode) {
+      // log out: clear the token + identity so the next person logs in fresh
+      authToken = null;
+      try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(LAST_KID_KEY); } catch (e) {}
+      buildPicker();   // re-render the login form
+    }
     showPicker();
   });
 
@@ -1215,7 +1285,9 @@ async function boot() {
   const flush = () => {
     if (!kid) return;
     saveCodeFor(current, editor.getValue());
-    const blob = new Blob([JSON.stringify(snapshot())], { type: "application/json" });
+    // token goes in the body — sendBeacon can't set headers
+    const body = authToken ? { ...snapshot(), token: authToken } : snapshot();
+    const blob = new Blob([JSON.stringify(body)], { type: "application/json" });
     if (navigator.sendBeacon) navigator.sendBeacon("api/progress", blob);
     else persistNow();
   };
@@ -1265,9 +1337,13 @@ builtins.input = _kid_input
   // Now choose who's coding. Auto-resume the last kid on this device;
   // otherwise show the picker.
   await buildPicker();
-  let last = null;
-  try { last = localStorage.getItem(LAST_KID_KEY); } catch (e) {}
-  if (last && profiles.includes(last)) {
+  let last = null, tok = null;
+  try { last = localStorage.getItem(LAST_KID_KEY); tok = localStorage.getItem(TOKEN_KEY); } catch (e) {}
+  if (accountsMode) {
+    // resume only if we still have a token (logging out clears it)
+    if (last && tok) { authToken = tok; await loadKid(last); }
+    else { showPicker(); }
+  } else if (last && profiles.includes(last)) {
     await loadKid(last);
   } else {
     showPicker();

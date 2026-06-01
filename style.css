@@ -265,3 +265,15 @@ header {
 .gal-meta .gal-title { font-size: 14px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gal-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; }
 .gal-del:hover { color: #ff7b72; }
+
+/* ---- Login / signup (accounts mode) ---- */
+.login-box { display: flex; flex-direction: column; gap: 12px; width: min(340px, 88vw); margin: 0 auto; }
+.login-box input {
+  padding: 14px 16px; border-radius: 12px; border: 2px solid #ffffff22;
+  background: #0d0f17; color: var(--ink); font-family: inherit; font-size: 18px; text-align: center;
+}
+.login-box input:focus { outline: none; border-color: var(--blue); }
+.login-actions { display: flex; gap: 10px; }
+.login-actions .btn { flex: 1; padding: 12px; font-size: 16px; }
+.login-msg { min-height: 20px; color: var(--accent-2); font-size: 14px; }
+.login-hint { color: var(--muted); font-size: 13px; line-height: 1.4; }
