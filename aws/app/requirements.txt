@@ -1,0 +1,3 @@
+# boto3 is provided by the Lambda Python runtime.
+# No external deps: the AI helper uses Bedrock (boto3), not the anthropic SDK,
+# so the package has no binary deps and needs no Docker build.

@@ -9,3 +9,7 @@ __pycache__/
 *.pyc
 
 .DS_Store
+
+# AWS SAM build artifacts + staged static copies
+aws/.aws-sam/
+aws/app/static/

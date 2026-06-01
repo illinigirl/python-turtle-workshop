@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Python Turtle Workshop — kids learn Python in the browser (Pyodide + Lambda + DynamoDB + Bedrock)
+
+Parameters:
+  CertificateArn:
+    Type: String
+    Default: ""
+    Description: ACM cert ARN (us-east-2) for the custom domain; blank = skip domain
+  DomainName:
+    Type: String
+    Default: ""
+    Description: Custom domain, e.g. python.megillini.dev
+  Profiles:
+    Type: String
+    Default: "Carter,Harper"
+    Description: Fallback profile buttons until nickname+PIN accounts ship
+  TutorModel:
+    Type: String
+    Default: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    Description: Bedrock inference-profile id for the AI helper
+  InsightsModel:
+    Type: String
+    Default: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    Description: Bedrock inference-profile id for the insights summary
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref CertificateArn, ""]]
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 512
+
+Resources:
+
+  # Single-table store: progress, accounts, gallery metadata, insights events.
+  # pk = "<TYPE>#<id>", sk = sub-key. PAY_PER_REQUEST = free when idle.
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+
+  # Saved turtle drawings (PNGs).
+  GalleryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  Api:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+
+  AppFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: handler.handler
+      Environment:
+        Variables:
+          TABLE: !Ref Table
+          GALLERY_BUCKET: !Ref GalleryBucket
+          WORKSHOP_PROFILES: !Ref Profiles
+          TUTOR_MODEL: !Ref TutorModel
+          INSIGHTS_MODEL: !Ref InsightsModel
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref Table }
+        - S3CrudPolicy: { BucketName: !Ref GalleryBucket }
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        Root:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/", Method: GET }
+        Proxy:
+          Type: HttpApi
+          Properties: { ApiId: !Ref Api, Path: "/{proxy+}", Method: ANY }
+
+  ApiDomain:
+    Type: AWS::ApiGatewayV2::DomainName
+    Condition: HasDomain
+    Properties:
+      DomainName: !Ref DomainName
+      DomainNameConfigurations:
+        - CertificateArn: !Ref CertificateArn
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+
+  ApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Condition: HasDomain
+    Properties:
+      ApiId: !Ref Api
+      DomainName: !Ref ApiDomain
+      Stage: "$default"
+
+Outputs:
+  ApiUrl:
+    Description: Open this in a browser
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/"
+  Table:
+    Value: !Ref Table
+  GalleryBucket:
+    Value: !Ref GalleryBucket
+  CustomDomainTarget:
+    Condition: HasDomain
+    Description: Point the subdomain CNAME at this (Cloudflare, DNS-only/grey)
+    Value: !GetAtt ApiDomain.RegionalDomainName
