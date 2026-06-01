@@ -13,8 +13,8 @@ Parameters:
     Description: Custom domain, e.g. python.megillini.dev
   Profiles:
     Type: String
-    Default: "Carter,Harper"
-    Description: Fallback profile buttons until nickname+PIN accounts ship
+    Default: ""
+    Description: Unused in accounts mode (AWS); kept empty so no names leak via /api/profiles
   TutorModel:
     Type: String
     Default: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
