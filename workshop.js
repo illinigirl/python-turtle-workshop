@@ -260,7 +260,7 @@ const W = canvas.width, H = canvas.height;
 let kid = null;
 let state = { done: new Set(), code: {}, steps: {} };
 let doneSet = state.done;          // alias used throughout the UI code
-let profiles = ["Carter", "Harper"];
+let profiles = ["Explorer", "Builder"];   // generic fallback; the real list comes from /api/profiles
 let tutorAvailable = false;       // server told us the AI helper is on
 let accountsMode = false;         // server uses nickname+PIN accounts (AWS) vs fixed profiles (Pi)
 let authToken = null;             // HMAC token after login (accounts mode)
