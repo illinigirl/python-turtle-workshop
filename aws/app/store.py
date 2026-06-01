@@ -98,6 +98,13 @@ def account_exists(nick):
     return "Item" in _t.get_item(Key={"pk": f"ACCOUNT#{_nick(nick)}", "sk": "profile"})
 
 
+# ---- insights admin key (gates the grown-up insights page) ----------------
+def check_insights_token(given):
+    r = _t.get_item(Key={"pk": "CONFIG", "sk": "insights_token"}).get("Item")
+    tok = r["v"] if r else None
+    return bool(tok) and bool(given) and hmac.compare_digest(tok, str(given))
+
+
 # ---- progress -------------------------------------------------------------
 def get_progress(nick):
     r = _t.get_item(Key={"pk": f"PROGRESS#{_nick(nick)}", "sk": "state"}).get("Item")

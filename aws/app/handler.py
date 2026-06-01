@@ -52,6 +52,12 @@ def _token(event, payload):
     return headers.get("x-workshop-token") or payload.get("token")
 
 
+def _insights_key(event, payload):
+    headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+    params = event.get("queryStringParameters") or {}
+    return headers.get("x-insights-token") or params.get("key") or (payload or {}).get("key")
+
+
 def _insights_summary():
     data = store.insights_data()
     if data["totals"]["events"] == 0:
@@ -95,6 +101,8 @@ def handler(event, context):
             # expose any names here.
             return _resp(200, {"profiles": [], "tutor": True, "accounts": True})
         if path == "/api/insights":
+            if not store.check_insights_token(_insights_key(event, {})):
+                return _resp(401, {"error": "admin key required"})
             return _resp(200, store.insights_data())
         if path == "/api/progress" and method == "GET":
             kid = params.get("kid", "")
@@ -144,6 +152,8 @@ def handler(event, context):
                 return _resp(200, {"ok": True})
 
             if path == "/api/insights/summary":
+                if not store.check_insights_token(_insights_key(event, payload)):
+                    return _resp(401, {"error": "admin key required"})
                 try:
                     return _resp(200, {"summary": _insights_summary()})
                 except Exception as e:

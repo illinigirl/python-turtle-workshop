@@ -79,9 +79,24 @@
       return Math.floor(s/86400) + "d ago";
     }
 
+    // Admin key — only asked for when a request is actually rejected (so the
+    // private Pi, which doesn't gate, never prompts). Remembered in this browser.
+    function storedKey(){ return localStorage.getItem("insights_key") || ""; }
+    function keyHeaders(extra){ const k = storedKey(); return Object.assign(k ? {"x-insights-token": k} : {}, extra || {}); }
+    function promptKey(){ const k = (prompt("Enter the insights admin key:") || "").trim(); if (k) localStorage.setItem("insights_key", k); return k; }
+
     async function load(){
       let d = { lessons:{}, recent:[], totals:{events:0,questions:0,errors:0} };
-      try { const r = await fetch("api/insights"); if (r.ok) d = await r.json(); } catch(e){}
+      try {
+        const r = await fetch("api/insights", { headers: keyHeaders() });
+        if (r.status === 401){
+          localStorage.removeItem("insights_key");
+          if (promptKey()) return load();
+          $("totals").innerHTML = '<div class="stat"><div class="l">Admin key required — reload the page to enter it.</div></div>';
+          return;
+        }
+        if (r.ok) d = await r.json();
+      } catch(e){}
 
       $("totals").innerHTML =
         stat(d.totals.questions, "questions asked") +
@@ -121,7 +136,8 @@
       const btn = $("summarize");
       btn.disabled = true; $("summary").textContent = "Thinking… (reading the logs)";
       try {
-        const r = await fetch("api/insights/summary", { method:"POST", headers:{"Content-Type":"application/json"}, body:"{}" });
+        const r = await fetch("api/insights/summary", { method:"POST", headers: keyHeaders({"Content-Type":"application/json"}), body:"{}" });
+        if (r.status === 401){ localStorage.removeItem("insights_key"); promptKey(); $("summary").innerHTML = '<span class="err">Admin key needed — tap the button again.</span>'; btn.disabled = false; return; }
         const d = await r.json().catch(()=>({}));
         $("summary").innerHTML = r.ok ? md(d.summary||"") : '<span class="err">'+esc(d.error||"Couldn't summarize.")+'</span>';
       } catch(e){ $("summary").innerHTML = '<span class="err">Couldn\'t reach the server.</span>'; }
