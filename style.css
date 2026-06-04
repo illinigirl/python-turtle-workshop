@@ -277,3 +277,12 @@ header {
 .login-actions .btn { flex: 1; padding: 12px; font-size: 16px; }
 .login-msg { min-height: 20px; color: var(--accent-2); font-size: 14px; }
 .login-hint { color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+/* ---- "Looks finished — mark it done?" suggestion ---- */
+.done-suggest {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+  background: #1f2b22; border: 2px solid var(--accent); animation: badgePop .4s ease;
+}
+.done-suggest span { font-weight: bold; color: var(--accent); }
+.done-suggest .btn { padding: 8px 14px; }

@@ -976,6 +976,7 @@ function renderSteps() {
       else delete state.steps[lessonId][i];
       row.classList.toggle("done", cb.checked);
       schedulePersist();
+      maybeSuggestDone();
     });
     const span = document.createElement("span");
     span.textContent = label;
@@ -983,6 +984,52 @@ function renderSteps() {
     row.appendChild(span);
     box.appendChild(row);
   });
+  maybeSuggestDone();
+}
+
+// When all REQUIRED steps (the non-⭐ ones) are ticked and the lesson isn't
+// already done, gently offer to mark it complete — the kid still confirms.
+function maybeSuggestDone() {
+  const box = $("lesson-steps");
+  const old = document.getElementById("done-suggest");
+  if (old) old.remove();
+  const steps = (typeof LESSON_STEPS !== "undefined" && LESSON_STEPS[current]) || [];
+  if (!steps.length) return;
+  const lessonId = lid(current);
+  if (doneSet.has(lessonId)) return;
+  const checked = state.steps[lessonId] || {};
+  const required = steps.map((_, i) => i).filter((i) => !steps[i].startsWith("⭐"));
+  if (!required.length || !required.every((i) => checked[i])) return;
+
+  const div = document.createElement("div");
+  div.id = "done-suggest";
+  div.className = "done-suggest";
+  const msg = document.createElement("span");
+  msg.textContent = "🎉 Looks like you finished everything!";
+  const btn = document.createElement("button");
+  btn.className = "btn btn-done";
+  btn.type = "button";
+  btn.textContent = "✓ Mark it done!";
+  btn.addEventListener("click", completeLesson);
+  div.appendChild(msg);
+  div.appendChild(btn);
+  box.appendChild(div);
+}
+
+// Mark the current lesson complete (used by the suggestion). Mirrors the
+// "done" path of the finish button: celebrate a finished unit, else advance.
+function completeLesson() {
+  const id = lid(current);
+  if (doneSet.has(id)) return;
+  const myUnit = realUnits().find((u) => u.idxs.includes(current));
+  const wasComplete = myUnit ? unitComplete(myUnit.idxs) : false;
+  doneSet.add(id);
+  persistNow();
+  buildSidebar();
+  renderLesson();
+  const nowComplete = myUnit ? unitComplete(myUnit.idxs) : false;
+  if (!wasComplete && nowComplete) celebrate("🎉 You finished " + shortUnit(myUnit.unit) + "!");
+  else if (current < LESSONS.length - 1) setTimeout(() => goTo(current + 1), 400);
 }
 
 /* ------------------------------------------------------------
