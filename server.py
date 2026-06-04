@@ -348,14 +348,30 @@ def build_ask_messages(payload):
         parts.append("The kid's code right now:\n```python\n" + code + "\n```")
 
     if mode == "check":
-        parts.append(
-            "Please CHECK " + kid + "'s work above against the lesson's challenge. "
-            "Say one thing they did well, then give at most ONE gentle hint about a next "
-            "thing to try. IMPORTANT: doing MORE than asked is GREAT — if they also did the "
-            "bonus challenge or experimented with extra lines, praise it. NEVER tell them to "
-            "remove correct extra work, and never say they have 'too much' or 'only need "
-            "one'. Only point out things that are actually broken or missing from the goal. "
-            "If everything works, just celebrate it. Do not write the finished solution.")
+        step_labels = payload.get("steps")
+        if isinstance(step_labels, list) and step_labels:
+            checklist = "\n".join("%d. %s" % (i + 1, s) for i, s in enumerate(step_labels))
+            parts.append(
+                "Here is " + kid + "'s checklist for this lesson, in order:\n" + checklist + "\n\n"
+                "Look at their code above. For EACH checklist item decide, from the code:\n"
+                '  "done"    = the code clearly accomplishes it\n'
+                '  "not_yet" = the code does not do this yet\n'
+                '  "unknown" = it is about running/experimenting and cannot be judged from code\n'
+                "Be GENEROUS — if the code reasonably accomplishes a step, mark it done. "
+                "Extra/bonus work is great.\n\n"
+                "Reply with ONLY a JSON object, nothing else, exactly like:\n"
+                '{"message": "<short warm note: praise something + ONE gentle hint if needed>", '
+                '"steps": ["done","not_yet","unknown"]}\n'
+                "The \"steps\" array MUST be the same length and order as the checklist above.")
+        else:
+            parts.append(
+                "Please CHECK " + kid + "'s work above against the lesson's challenge. "
+                "Say one thing they did well, then give at most ONE gentle hint about a next "
+                "thing to try. IMPORTANT: doing MORE than asked is GREAT — if they also did the "
+                "bonus challenge or experimented with extra lines, praise it. NEVER tell them to "
+                "remove correct extra work, and never say they have 'too much' or 'only need "
+                "one'. Only point out things that are actually broken or missing from the goal. "
+                "If everything works, just celebrate it. Do not write the finished solution.")
     elif mode == "fix":
         if error:
             parts.append("They ran their code and got this error message:\n" + error)
@@ -378,17 +394,31 @@ def build_ask_messages(payload):
 
 
 def answer_question(payload):
-    """Call Claude and return the helper's reply text (raises on API error)."""
+    """Call Claude. Returns {"answer": text, "steps": verdicts_or_None}.
+    For 'check' mode with a checklist, the model also judges each step."""
     client = _get_client()
-    # "Explain this" wants room to go slow and thorough; others stay short.
-    max_tokens = 1100 if payload.get("mode") == "explain" else 700
+    mode = payload.get("mode")
+    is_check_steps = mode == "check" and isinstance(payload.get("steps"), list) and payload.get("steps")
+    max_tokens = 1100 if mode == "explain" else (800 if is_check_steps else 700)
     resp = client.messages.create(
         model=TUTOR_MODEL,
         max_tokens=max_tokens,
         system=TUTOR_SYSTEM,
         messages=build_ask_messages(payload),
     )
-    return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
+    text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
+    if is_check_steps:
+        import re
+        m = re.search(r"\{[\s\S]*\}", text)
+        try:
+            obj = json.loads(m.group(0) if m else text)
+            verdicts = obj.get("steps")
+            if not isinstance(verdicts, list):
+                verdicts = None
+            return {"answer": (str(obj.get("message", "")).strip() or "Nice work! 🎉"), "steps": verdicts}
+        except Exception:
+            return {"answer": text, "steps": None}
+    return {"answer": text, "steps": None}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -424,8 +454,11 @@ class Handler(BaseHTTPRequestHandler):
                    "question": str(payload.get("question", ""))[:300],
                    "errorText": str(payload.get("errorText", ""))[:200]})
         try:
-            answer = answer_question(payload)
-            return self._send(200, {"answer": answer})
+            result = answer_question(payload)
+            out = {"answer": result["answer"]}
+            if result.get("steps"):
+                out["steps"] = result["steps"]
+            return self._send(200, out)
         except Exception as e:
             # Don't leak internals to a kid's screen; log server-side.
             print("ask error:", repr(e))

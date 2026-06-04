@@ -1023,6 +1023,22 @@ function renderHelperMarkdown(text) {
   return s;
 }
 
+// Auto-tick the checklist boxes the helper judged "done". Additive only — it
+// never unticks a box the kid checked themselves.
+function applyStepVerdicts(verdicts) {
+  const lessonId = lid(current);
+  if (!state.steps[lessonId]) state.steps[lessonId] = {};
+  let added = 0;
+  verdicts.forEach((v, i) => {
+    if (v === "done" && !state.steps[lessonId][i]) { state.steps[lessonId][i] = true; added++; }
+  });
+  if (added) {
+    renderSteps();
+    schedulePersist();
+    showToast("✅ Checked off " + added + (added === 1 ? " step!" : " steps!"));
+  }
+}
+
 async function askHelper(question, mode = "ask", errorText = "") {
   helpBubble("me", question);
   const waitMsg = mode === "check" ? "looking at your code…"
@@ -1045,6 +1061,8 @@ async function askHelper(question, mode = "ask", errorText = "") {
         lessonText: lessonPlainText(LESSONS[current].intro),
         lessonTask: lessonPlainText(LESSONS[current].task),
         levelUp: lessonPlainText(LESSONS[current].levelUp),
+        // for check mode, send the checklist labels so the helper can judge each
+        steps: (mode === "check" && typeof LESSON_STEPS !== "undefined") ? (LESSON_STEPS[current] || []) : undefined,
         code: editor.getValue(),
       }),
     });
@@ -1056,6 +1074,9 @@ async function askHelper(question, mode = "ask", errorText = "") {
       helpHistory.push({ role: "user", content: question });
       helpHistory.push({ role: "assistant", content: answer });
     }
+    // auto-tick the checklist boxes the helper judged done (additive only —
+    // never unticks the kid's own marks)
+    if (r.ok && mode === "check" && Array.isArray(data.steps)) applyStepVerdicts(data.steps);
   } catch (e) {
     thinking.className = "bubble helper";
     thinking.textContent = "I couldn't reach the helper. Check the connection and try again.";

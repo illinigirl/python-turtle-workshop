@@ -139,7 +139,11 @@ def handler(event, context):
                                  "lesson": payload.get("lessonTitle", ""),
                                  "question": payload.get("question", "")})
                 try:
-                    return _resp(200, {"answer": ai.answer(payload)})
+                    result = ai.answer(payload)
+                    out = {"answer": result["answer"]}
+                    if result.get("steps"):
+                        out["steps"] = result["steps"]
+                    return _resp(200, out)
                 except Exception as e:
                     print("ask error:", repr(e))
                     return _resp(502, {"error": "The helper is taking a quick break — try again in a moment."})
