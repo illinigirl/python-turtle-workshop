@@ -188,11 +188,14 @@ turtle.forward(120)</pre>
     again. That's how you build any shape out of straight lines!</p>`,
   task: `<p>Draw a big letter <b>L</b>: go forward, turn, go forward.</p>
     <p>Then try a letter made of <b>straight lines</b> — great ones are
-    <b>T, E, F, H, I, L</b>. (You'll use <code>penup()</code>/<code>pendown()</code>
-    in a later lesson to lift the pen, so for now pick a letter you can draw in
-    one path.)</p>
+    <b>T, E, F, H, I, L</b>. Pick a letter you can draw in one path without lifting
+    the pen, and make it BIG (you've got the whole canvas now!).</p>
     <p>💡 Curvy letters like <b>C, S, O, G</b> need <i>circles</i> — we learn those
-    in a couple of lessons! So for today, pick a straight-line letter. ✏️</p>`,
+    in a couple of lessons! So for today, pick a straight-line letter. ✏️</p>
+    <p>✨ <b>Want to draw a few separate letters side by side?</b> You'd need to lift
+    the pen and slide over without drawing — that's <code>penup()</code> (and
+    <code>pendown()</code> to start drawing again). You'll learn it in a couple of
+    lessons — for now, make one awesome big letter!</p>`,
   levelUp: `<p>Make the turtle draw a triangle. Hint: turn <code>120</code> degrees
     between each side (not 90!). Why 120? Because a triangle's outside turns add up
     to 360, and 360 ÷ 3 = 120.</p>`,
