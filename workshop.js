@@ -569,6 +569,13 @@ async function runCode() {
 
   try {
     pyodide.runPython("import turtle; turtle._reset()");
+    // Some lessons start the turtle somewhere other than center (e.g. upper-left
+    // for letters, so there's room). Position it invisibly before the kid's code
+    // runs — pen-up move draws nothing.
+    const home = LESSONS[current].home;
+    if (Array.isArray(home)) {
+      pyodide.runPython("import turtle; turtle.penup(); turtle.goto(" + (+home[0]) + ", " + (+home[1]) + "); turtle.pendown()");
+    }
     await pyodide.runPythonAsync(editor.getValue());
     const opsJson = pyodide.runPython("import turtle; turtle.get_ops_json()");
     const ops = JSON.parse(opsJson);

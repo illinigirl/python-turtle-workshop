@@ -165,6 +165,7 @@ print("In dog years I'm " + str(dog_years) + "!")
 {
   unit: "2 · Meet the turtle 🐢",
   title: "Move the turtle",
+  home: [-200, 150],   // start upper-left so letters have room to grow right + down
   intro: `
     <p>Time for drawing! Python has a <b>turtle</b> that carries a pen. When it moves,
     it draws a line — exactly like the pen blocks in Scratch.</p>
