@@ -26,8 +26,9 @@ answers questions in kid-friendly language.
   laptop or an iPad.
 - **A custom `turtle`** that animates onto an HTML canvas (the real `turtle` needs
   tkinter, which browsers don't have). Learners still write plain `import turtle`.
-- **12 guided lessons + free play**: print/variables/math → turtle drawing, loops,
-  color, spirals → input & `if` → a Guess-the-Number game → functions → a capstone.
+- **18 guided lessons + free play**: print/variables/math → turtle drawing, loops,
+  color, spirals → lists & data → input & `if` → a Guess-the-Number game →
+  functions → a capstone.
 - **Optional AI helper** (Claude) with three modes:
   - **Ask** — any question, answered with the learner's current code as context.
   - **📖 Explain this** — re-teaches the current lesson, step by step, with an analogy.
