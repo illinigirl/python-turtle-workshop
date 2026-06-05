@@ -7,6 +7,8 @@ nothing to install on the learner's device.
 
 **▶️ Try it live:** https://illinigirl.github.io/python-turtle-workshop/
 
+![Writing real Python and watching the turtle draw it, live in the browser](docs/demo-code-and-canvas.png)
+
 Built as a friendly bridge from block coding (Scratch / Minecraft) to text-based
 Python: instant feedback, a forgiving editor, and an optional AI helper that
 answers questions in kid-friendly language.
@@ -15,6 +17,8 @@ answers questions in kid-friendly language.
 > step, and without me hovering to translate every error message. So the workshop
 > explains itself, checks their work, and turns Python's cryptic errors into plain
 > English.
+
+![Guided lesson view: a lesson list, plain-English instructions, and a tick-off checklist](docs/demo-lesson-ui.png)
 
 ## ✨ Features
 
