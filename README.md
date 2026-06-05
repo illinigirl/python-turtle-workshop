@@ -5,6 +5,8 @@ write **real Python** — by drawing with a turtle and building little games.
 Python runs **in the browser** via [Pyodide](https://pyodide.org), so there's
 nothing to install on the learner's device.
 
+**▶️ Try it live:** https://illinigirl.github.io/python-turtle-workshop/
+
 Built as a friendly bridge from block coding (Scratch / Minecraft) to text-based
 Python: instant feedback, a forgiving editor, and an optional AI helper that
 answers questions in kid-friendly language.
